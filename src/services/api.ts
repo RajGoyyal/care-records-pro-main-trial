@@ -1,6 +1,11 @@
 import { Patient, Prescription, Vitals, Appointment, LabOrder, Encounter } from "@/types/hmis";
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL: string = (
+  (typeof window !== 'undefined' && (window as any).BACKEND_BASE) ||
+  (typeof localStorage !== 'undefined' && localStorage.getItem('BACKEND_BASE')) ||
+  (import.meta as any)?.env?.VITE_API_BASE_URL ||
+  'http://localhost:5000'
+).replace(/\/$/, '');
 
 // Generic API request helper with better error handling
 async function apiRequest<T>(
@@ -57,7 +62,7 @@ let apiAvailable = true;
 
 const checkApiHealth = async (): Promise<boolean> => {
   try {
-    await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+  await fetch(`${API_BASE_URL}/api/health`, { method: 'GET' });
     apiAvailable = true;
     return true;
   } catch {

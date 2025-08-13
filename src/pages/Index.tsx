@@ -21,9 +21,10 @@ const Index = () => {
 
   // Check API connection status
   useEffect(() => {
+    const API_BASE = (localStorage.getItem('BACKEND_BASE') || (window as any).BACKEND_BASE || 'http://localhost:5000').replace(/\/$/, '');
     const checkConnection = async () => {
       try {
-        const response = await fetch('http://localhost:5000/health');
+        const response = await fetch(`${API_BASE}/api/health`);
         setConnectionStatus(response.ok ? 'connected' : 'disconnected');
       } catch {
         setConnectionStatus('disconnected');
