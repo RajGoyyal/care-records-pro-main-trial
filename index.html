@@ -21,6 +21,19 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      (function(){
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var backend = params.get('backend');
+          if (backend) {
+            var base = (backend + '').replace(/\/$/, '');
+            window.BACKEND_BASE = base;
+            try { localStorage.setItem('BACKEND_BASE', base); } catch (e) {}
+          }
+        } catch(e) { /* noop */ }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

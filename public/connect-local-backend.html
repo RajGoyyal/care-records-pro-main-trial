@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NHCE HMIS - Connect Local Backend</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b1320;color:#e6f1ff;margin:0}
+      .card{background:#111a2b;border:1px solid #1f2a44;border-radius:12px;padding:24px;max-width:720px;width:92%}
+      .row{margin:10px 0}
+      input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #24324f;background:#0e1626;color:#dbe9ff}
+      button{background:#2d6cdf;color:#fff;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+      .muted{color:#9db3d9;font-size:14px}
+      .ok{color:#79d39b}
+      .bad{color:#ff7a7a}
+      code{background:#0e1626;padding:2px 6px;border-radius:6px;border:1px solid #1f2a44}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Connect to Local Backend</h2>
+      <p class="muted">This page tries to start your local Flask server and then redirects the Vercel app to use it.</p>
+      <div class="row">
+        <label>Local backend URL</label>
+        <input id="backend" value="http://127.0.0.1:5000" />
+      </div>
+      <div class="row">
+        <button id="start">Start backend and open app</button>
+      </div>
+      <div id="log" class="muted"></div>
+    </div>
+    <script>
+      const $ = (s)=>document.querySelector(s);
+      const log = (t, cls)=>{ const el=$('#log'); el.innerHTML += `<div class="${cls||''}">${t}</div>`; };
+      async function ping(url){
+        try{ const r = await fetch(url + '/api/health', {cache:'no-store'}); if(r.ok) return true; }catch(e){}
+        return false;
+      }
+      async function tryStartWindows(){
+        // On Windows, the user must run the batch manually; we just guide them
+        log('If backend is not running, please run start_production_app.bat and come back here.', 'bad');
+      }
+      $('#start').addEventListener('click', async ()=>{
+        const base = $('#backend').value.replace(/\/$/, '');
+        log(`Checking backend at <code>${base}</code>...`);
+        let ok = await ping(base);
+        if(!ok){
+          await tryStartWindows();
+          // Poll up to ~10s
+          for(let i=0;i<10 && !ok;i++){
+            await new Promise(r=>setTimeout(r,1000));
+            ok = await ping(base);
+          }
+        }
+        if(ok){
+          log('Backend is up. Redirecting to app...', 'ok');
+          const appUrl = new URL('/', window.location.origin);
+          appUrl.searchParams.set('backend', base);
+          window.location.href = appUrl.toString();
+        }else{
+          log('Could not reach backend. Ensure it is running locally at the specified URL.', 'bad');
+        }
+      });
+    </script>
+  </body>
+  </html>
