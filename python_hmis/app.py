@@ -7,10 +7,13 @@ import sqlite3
 from datetime import datetime, date
 from typing import Any, Dict, List, Optional, Tuple
 
-from flask import Flask, redirect, render_template, request, Response, url_for, jsonify
+from flask import Flask, redirect, render_template, request, Response, url_for, jsonify, send_from_directory
 
 # Allow overriding data directory (useful for frozen/EXE builds)
 APP_DIR = os.environ.get("HMIS_DATA_DIR") or os.path.dirname(os.path.abspath(__file__))
+# Project root (one level up from this file's folder)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PUBLIC_DIR = os.path.join(PROJECT_ROOT, "public")
 # Ensure directory exists when using an external path
 os.makedirs(APP_DIR, exist_ok=True)
 DB_PATH = os.path.join(APP_DIR, "hmis.db")
@@ -34,6 +37,51 @@ def handle_options(path=None):
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
+
+# --- Frontend (serve SPA) ---
+
+@app.route("/")
+def serve_spa_root():
+    """Serve the standalone SPA (hmis-standalone.html) from project root."""
+    spa_path = os.path.join(PROJECT_ROOT, "hmis-standalone.html")
+    if os.path.exists(spa_path):
+        return send_from_directory(PROJECT_ROOT, "hmis-standalone.html")
+    # Fallback to simple template if standalone file missing
+    return render_template("index.html")
+
+
+@app.route("/hmis-standalone.html")
+def serve_spa_explicit():
+    return send_from_directory(PROJECT_ROOT, "hmis-standalone.html")
+
+
+@app.route("/public/<path:filename>")
+def serve_public(filename: str):
+    if os.path.exists(os.path.join(PUBLIC_DIR, filename)):
+        return send_from_directory(PUBLIC_DIR, filename)
+    return ("Not Found", 404)
+
+
+@app.route("/favicon.ico")
+def serve_favicon():
+    # Try public first, then project root
+    fav_public = os.path.join(PUBLIC_DIR, "favicon.ico")
+    if os.path.exists(fav_public):
+        return send_from_directory(PUBLIC_DIR, "favicon.ico")
+    fav_root = os.path.join(PROJECT_ROOT, "favicon.ico")
+    if os.path.exists(fav_root):
+        return send_from_directory(PROJECT_ROOT, "favicon.ico")
+    return ("", 204)
+
+
+# A few known root-level assets referenced by the SPA
+@app.route("/nhce_25-scaled-1-2048x683.png")
+def serve_root_banner():
+    return send_from_directory(PROJECT_ROOT, "nhce_25-scaled-1-2048x683.png")
+
+@app.route("/nhce_logo.png")
+def serve_root_logo():
+    return send_from_directory(PROJECT_ROOT, "nhce_logo.png")
 
 # --- Database helpers ---
 

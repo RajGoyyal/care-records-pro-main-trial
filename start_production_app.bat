@@ -8,7 +8,7 @@ set "ROOT=%~dp0"
 set "BACKEND_PY=%ROOT%run_production_server.py"
 set "REQ=%ROOT%python_hmis\requirements.txt"
 set "VENV_ACT=%ROOT%python_hmis\.venv\Scripts\activate.bat"
-set "FRONT=%ROOT%hmis-standalone.html"
+set "FRONT_URL=http://%HMIS_HOST%:%HMIS_PORT%/"
 set "HMIS_HOST=127.0.0.1"
 set "HMIS_PORT=5000"
 
@@ -28,12 +28,7 @@ if not exist "%BACKEND_PY%" (
   pause
   exit /b 1
 )
-if not exist "%FRONT%" (
-  color 0C
-  echo ❌ Frontend file not found: %FRONT%
-  pause
-  exit /b 1
-)
+REM No need to validate local file; Flask will serve the SPA at / if present
 
 REM Optional: activate virtual environment if present
 if exist "%VENV_ACT%" (
@@ -89,7 +84,7 @@ echo ⚠️  Could not confirm server readiness, opening UI anyway.
 
 :open_ui
 echo 🌐 Opening frontend in default browser...
-start "HMIS Frontend" "%FRONT%"
+start "HMIS Frontend" "%FRONT_URL%"
 
 echo.
 color 0A
