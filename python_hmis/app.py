@@ -2,13 +2,17 @@ from __future__ import annotations
 import csv
 import io
 import os
+import sys
 import sqlite3
 from datetime import datetime, date
 from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, redirect, render_template, request, Response, url_for, jsonify
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
+# Allow overriding data directory (useful for frozen/EXE builds)
+APP_DIR = os.environ.get("HMIS_DATA_DIR") or os.path.dirname(os.path.abspath(__file__))
+# Ensure directory exists when using an external path
+os.makedirs(APP_DIR, exist_ok=True)
 DB_PATH = os.path.join(APP_DIR, "hmis.db")
 
 app = Flask(__name__)
