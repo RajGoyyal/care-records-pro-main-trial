@@ -1649,6 +1649,8 @@
                 e.preventDefault();
                 if (!validateForm()) return;
 
+                const nowIso = new Date().toISOString();
+                const nowEpoch = Date.now();
                 const prescriptionRecord = {
                     id: Date.now().toString(),
                     usn: formData.usn,
@@ -1665,7 +1667,8 @@
                     })),
                     notes: formData.notes,
                     followUpDate: formData.followUpDate,
-                    prescribedAt: new Date().toISOString(),
+                    prescribedAt: nowIso,
+                    createdAt: nowEpoch,
                     prescribedBy: 'NHCE Clinic',
                     priority: formData.priority
                 };
@@ -1681,6 +1684,7 @@
                     medications: prescriptionRecord.medications,
                     notes: formData.notes,
                     followUpDate: formData.followUpDate,
+                    prescribedAt: nowIso,
                     prescribedBy: 'NHCE Clinic',
                     status: 'Active',
                     patientName: selectedPatientDetails?.fullName || '',
@@ -2067,7 +2071,7 @@
                                             <div>
                                                 <div className="font-medium">{prescription.diagnosis}</div>
                                                 <div className="text-sm text-gray-600">
-                                                    {new Date(prescription.prescribedAt).toLocaleDateString()} - {prescription.prescribedBy}
+                                                    {prescription.prescribedAt ? new Date(prescription.prescribedAt).toLocaleDateString() : 'N/A'} - {prescription.prescribedBy}
                                                 </div>
                                             </div>
                                             <span className={`badge ${prescription.status === 'Active' ? 'badge-green' : 'badge-blue'}`}>
@@ -2351,7 +2355,7 @@
                                 <tbody>
                                     {filteredPrescriptions.map((prescription) => (
                                         <tr key={prescription.id}>
-                                            <td>{new Date(prescription.prescribedAt).toLocaleDateString()}</td>
+                                            <td>{prescription.prescribedAt ? new Date(prescription.prescribedAt).toLocaleDateString() : 'N/A'}</td>
                                             <td>{prescription.patientName}</td>
                                             <td>{prescription.usn}</td>
                                             <td>{prescription.diagnosis}</td>
