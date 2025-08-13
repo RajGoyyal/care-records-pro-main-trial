@@ -2214,10 +2214,21 @@
                                 .no-print { display: none; }
                                 /* Keep signature and footer together */
                                 .signature-and-footer, .footer, .signature-section {
+                                    /* Try hard to keep these together */
                                     page-break-inside: avoid;
                                     break-inside: avoid;
                                     -webkit-column-break-inside: avoid;
                                     -webkit-region-break-inside: avoid;
+                                    orphans: 100; widows: 100;
+                                }
+                                .signature-and-footer {
+                                    /* Make the block atomic so it moves as a unit to next page if needed */
+                                    display: inline-block;
+                                    width: 100%;
+                                    break-before: avoid-page;
+                                    page-break-before: auto;
+                                    page-break-after: avoid;
+                                    margin-top: 20px;
                                 }
                                 img { max-width: 100%; height: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
                             }
