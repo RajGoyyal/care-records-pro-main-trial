@@ -2211,7 +2211,15 @@
                                     size: A4;
                                 }
                                 body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.4; color: #000; }
-                                .no-print { display: none; } .footer, .signature-section { page-break-inside: avoid; } img { max-width: 100%; height: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                                .no-print { display: none; }
+                                /* Keep signature and footer together */
+                                .signature-and-footer, .footer, .signature-section {
+                                    page-break-inside: avoid;
+                                    break-inside: avoid;
+                                    -webkit-column-break-inside: avoid;
+                                    -webkit-region-break-inside: avoid;
+                                }
+                                img { max-width: 100%; height: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
                             }
                             body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 10px; }
                             .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
@@ -2229,7 +2237,7 @@
                             .medication-name { font-weight: bold; font-size: 14px; color: #1e40af; }
                             .medication-details { margin-top: 5px; color: #555; }
                             .notes { background: #fff3cd; padding: 10px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ffc107; }
-                            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #666; page-break-inside: avoid; }
+                            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #666; }
                             .signature-section { margin-top: 40px; text-align: right; page-break-inside: avoid; }
                             .signature-line { border-bottom: 1px solid #333; width: 200px; display: inline-block; margin-bottom: 5px; }
                             .btn { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin: 10px 5px; }
@@ -2297,18 +2305,20 @@
                             </div>
                         ` : ''}
 
-                        <div class="signature-section">
-                            <div class="signature-line"></div><br>
-                            <strong>${prescribedBy}</strong><br>
-                            <small>Authorized Prescriber</small>
-                        </div>
+                        <div class="signature-and-footer">
+                            <div class="signature-section">
+                                <div class="signature-line"></div><br>
+                                <strong>${prescribedBy}</strong><br>
+                                <small>Authorized Prescriber</small>
+                            </div>
 
-                        <div class="footer">
-                            <p><strong>New Horizon Sanjeevani Clinic</strong></p>
-                            <p>This prescription is computer generated and valid for the medications listed above.</p>
-                            <p>Printed on: ${currentDate} at ${currentTime}</p>
-                            <p style="margin-top: 10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
-                            <p> Raj Goyal +91 799-2247-030 rajgoyal@duck.com USN: 1NH23CS329</p>
+                            <div class="footer">
+                                <p><strong>New Horizon Sanjeevani Clinic</strong></p>
+                                <p>This prescription is computer generated and valid for the medications listed above.</p>
+                                <p>Printed on: ${currentDate} at ${currentTime}</p>
+                                <p style="margin-top: 10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                                <p> Raj Goyal +91 799-2247-030 rajgoyal@duck.com USN: 1NH23CS329</p>
+                            </div>
                         </div>
 
                         <div class="no-print" style="text-align: center; margin-top: 20px;">
