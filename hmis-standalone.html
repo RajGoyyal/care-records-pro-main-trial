@@ -1102,13 +1102,23 @@
                     setPatients(updatedList);
                     saveToStorage('patients', updatedList);
 
-                    // Best-effort server sync
+                    // Try to sync with server and inform user where it's stored
+                    const wasEdit = !!selectedPatient;
+                    const actionText = wasEdit ? 'updated' : 'added';
+                    let synced = false;
                     try {
-                        await syncWithDatabase('patients', payload, selectedPatient ? 'PUT' : 'POST');
-                    } catch (_) {}
+                        synced = await syncWithDatabase('patients', payload, wasEdit ? 'PUT' : 'POST');
+                    } catch (_) { synced = false; }
+
+                    if (synced) {
+                        alert(`✅ Patient ${actionText} and synced to database successfully!`);
+                    } else if (serverAvailable) {
+                        alert(`❌ Patient ${actionText} locally but failed to sync. Will retry when online.`);
+                    } else {
+                        alert(`💾 Patient ${actionText} locally. Will sync when server is available.`);
+                    }
 
                     resetForm();
-                    alert(`Patient ${selectedPatient ? 'updated' : 'added'} successfully`);
                 } finally {
                     setSaving(false);
                 }
@@ -1225,6 +1235,21 @@
                             {selectedPatient && (
                                 <button type="button" onClick={resetForm} className="btn btn-secondary">Cancel Edit</button>
                             )}
+                            <button 
+                                type="button" 
+                                onClick={async () => {
+                                    const isHealthy = await checkServerHealth();
+                                    serverAvailable = isHealthy;
+                                    if (isHealthy) {
+                                        alert('✅ Database connection successful!');
+                                    } else {
+                                        alert('❌ Database connection failed. Please ensure the Python server is running on localhost:5000');
+                                    }
+                                }}
+                                className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                            >
+                                🔧 Test DB Connection
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -1651,6 +1676,14 @@
 
                 const nowIso = new Date().toISOString();
                 const nowEpoch = Date.now();
+                // Build an IST (Asia/Kolkata) timestamp string (YYYY-MM-DDTHH:mm:ss+05:30)
+                const istParts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'Asia/Kolkata',
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+                }).formatToParts(new Date());
+                const part = (t) => (istParts.find(p => p.type === t) || {}).value || '';
+                const prescribedAtIST = `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}:${part('second')}+05:30`;
                 const prescriptionRecord = {
                     id: Date.now().toString(),
                     usn: formData.usn,
@@ -1668,6 +1701,7 @@
                     notes: formData.notes,
                     followUpDate: formData.followUpDate,
                     prescribedAt: nowIso,
+                    prescribedAtIST,
                     createdAt: nowEpoch,
                     prescribedBy: 'NHCE Clinic',
                     priority: formData.priority
@@ -1685,6 +1719,7 @@
                     notes: formData.notes,
                     followUpDate: formData.followUpDate,
                     prescribedAt: nowIso,
+                    prescribedAtIST,
                     prescribedBy: 'NHCE Clinic',
                     status: 'Active',
                     patientName: selectedPatientDetails?.fullName || '',
@@ -2071,7 +2106,14 @@
                                             <div>
                                                 <div className="font-medium">{prescription.diagnosis}</div>
                                                 <div className="text-sm text-gray-600">
-                                                    {prescription.prescribedAt ? new Date(prescription.prescribedAt).toLocaleDateString() : 'N/A'} - {prescription.prescribedBy}
+                                                    {(() => {
+                                                        const ts = prescription.prescribedAtIST || prescription.prescribedAt;
+                                                        if (!ts) return 'N/A';
+                                                        try {
+                                                            const d = new Date(ts);
+                                                            return `${d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}` + ' - ' + prescription.prescribedBy;
+                                                        } catch { return 'N/A - ' + prescription.prescribedBy; }
+                                                    })()}
                                                 </div>
                                             </div>
                                             <span className={`badge ${prescription.status === 'Active' ? 'badge-green' : 'badge-blue'}`}>
@@ -2151,7 +2193,7 @@
                 const usn = prescription.usn || 'N/A';
                 const diagnosis = prescription.diagnosis || 'No diagnosis provided';
                 const prescribedBy = prescription.prescribedBy || 'NHCE Clinic';
-                const prescribedAt = prescription.prescribedAt || new Date().toISOString();
+                const prescribedAt = prescription.prescribedAtIST || prescription.prescribedAt || new Date().toISOString();
                 const medications = prescription.medications || [];
                 const notes = prescription.notes || '';
                 const followUpDate = prescription.followUpDate || '';
@@ -2216,8 +2258,8 @@
                             </div>
                             <div class="prescription-info">
                                 <h3 style="margin-top: 0; color: #333;">Prescription Details</h3>
-                                <div class="info-row"><span class="label">Date:</span> ${new Date(prescribedAt).toLocaleDateString()}</div>
-                                <div class="info-row"><span class="label">Time:</span> ${new Date(prescribedAt).toLocaleTimeString()}</div>
+                                <div class="info-row"><span class="label">Date:</span> ${new Date(prescribedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
+                                <div class="info-row"><span class="label">Time:</span> ${new Date(prescribedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
                                 <div class="info-row"><span class="label">Doctor:</span> ${prescribedBy}</div>
                                 <div class="info-row"><span class="label">Rx ID:</span> RX-${prescription.id}</div>
                             </div>
@@ -2355,7 +2397,11 @@
                                 <tbody>
                                     {filteredPrescriptions.map((prescription) => (
                                         <tr key={prescription.id}>
-                                            <td>{prescription.prescribedAt ? new Date(prescription.prescribedAt).toLocaleDateString() : 'N/A'}</td>
+                                            <td>{(() => {
+                                                const ts = prescription.prescribedAtIST || prescription.prescribedAt;
+                                                if (!ts) return 'N/A';
+                                                try { return new Date(ts).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }); } catch { return 'N/A'; }
+                                            })()}</td>
                                             <td>{prescription.patientName}</td>
                                             <td>{prescription.usn}</td>
                                             <td>{prescription.diagnosis}</td>
