@@ -1080,6 +1080,7 @@
                 setSaving(true);
 
                 try {
+                    const nowMs = Date.now();
                     const payload = {
                         usn: formData.usn.trim(),
                         fullName: formData.fullName.trim(),
@@ -1087,13 +1088,26 @@
                         gender: formData.gender,
                         address: formData.address?.trim() || '',
                         phone: formData.phone?.trim() || '',
-                        email: formData.email?.trim() || ''
+                        email: formData.email?.trim() || '',
+                        // Timestamps help prevent server refresh from overwriting local edits
+                        createdAt: typeof selectedPatient?.createdAt === 'number' ? selectedPatient.createdAt : (selectedPatient?.createdAt ? Date.parse(selectedPatient.createdAt) || nowMs : nowMs),
+                        updatedAt: nowMs
                     };
 
                     let updatedList = [];
                     if (selectedPatient) {
                         // Update existing
-                        updatedList = (patients || []).map(p => p.usn === selectedPatient.usn ? { ...p, ...payload } : p);
+                        updatedList = (patients || []).map(p => {
+                            if (p.usn === selectedPatient.usn) {
+                                return {
+                                    ...p,
+                                    ...payload,
+                                    createdAt: typeof p.createdAt === 'number' ? p.createdAt : (p.createdAt ? Date.parse(p.createdAt) || payload.createdAt : payload.createdAt), // preserve original creation time
+                                    updatedAt: nowMs
+                                };
+                            }
+                            return p;
+                        });
                     } else {
                         // Add new
                         updatedList = [ ...(patients || []), payload ];
@@ -1107,7 +1121,8 @@
                     const actionText = wasEdit ? 'updated' : 'added';
                     let synced = false;
                     try {
-                        synced = await syncWithDatabase('patients', payload, wasEdit ? 'PUT' : 'POST');
+                        // Backend accepts POST for both create and update (INSERT OR REPLACE)
+                        synced = await syncWithDatabase('patients', payload, 'POST');
                     } catch (_) { synced = false; }
 
                     if (synced) {
@@ -2646,6 +2661,79 @@
         const PatientList = ({ patients, onEdit, onDelete }) => {
             const [searchTerm, setSearchTerm] = useState('');
 
+            const printPatient = (patient) => {
+                if (!patient) return;
+                const printWindow = window.open('', '_blank');
+                const currentDate = new Date().toLocaleDateString('en-IN');
+                const currentTime = new Date().toLocaleTimeString('en-IN');
+                const safe = {
+                    usn: patient.usn || 'N/A',
+                    fullName: patient.fullName || 'N/A',
+                    age: patient.age ?? 'N/A',
+                    gender: patient.gender || 'N/A',
+                    phone: patient.phone || 'N/A',
+                    email: patient.email || 'N/A',
+                    address: patient.address || 'N/A',
+                };
+                const logoUrl = new URL('./nhce_25-scaled-1-2048x683.png', window.location.href).href;
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Patient Details - ${safe.fullName}</title>
+                        <style>
+                            @media print { @page { size: A4; margin: 0.25in 0.35in; } html,body{margin:0;padding:0.05in 0.1in;} .no-print{display:none} }
+                            body{ font-family: Arial, sans-serif; max-width:800px; margin:0 auto; padding:10px; color:#000; }
+                            .header{ text-align:center; border-bottom:2px solid #333; padding-bottom:6px; margin-bottom:12px; }
+                            .clinic-name{ font-size:20px; font-weight:bold; color:#2563eb; }
+                            .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+                            .label{ font-weight:bold; display:inline-block; min-width:110px; }
+                            .section{ margin:14px 0; }
+                            .footer{ margin-top:18px; padding-top:10px; border-top:1px solid #ddd; font-size:9px; color:#666; text-align:center; }
+                            .footer p { margin: 2px 0; }
+                            .btn{ background:#16a34a; color:#fff; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; }
+                            .btn:hover{ background:#15803d; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
+                                <img src="${logoUrl}" alt="NHCE Logo" style="height:50px;" />
+                                <div style="text-align:left;">
+                                    <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
+                                    <div style="font-size:12px;color:#555">New Horizon College of Engineering</div>
+                                </div>
+                            </div>
+                        </div>
+                        <h2 style="margin:0 0 8px 0;">Patient Details</h2>
+                        <div class="section">
+                            <div><span class="label">Name:</span> ${safe.fullName}</div>
+                            <div><span class="label">USN:</span> ${safe.usn}</div>
+                            <div><span class="label">Age:</span> ${safe.age}</div>
+                            <div><span class="label">Gender:</span> ${safe.gender}</div>
+                            <div><span class="label">Phone:</span> ${safe.phone}</div>
+                            <div><span class="label">Email:</span> ${safe.email}</div>
+                            <div><span class="label">Address:</span> ${safe.address}</div>
+                        </div>
+                        <div class="footer">
+                            <p><strong>New Horizon Sanjeevani Clinic</strong></p>
+                            <p>This document is computer generated and issued by the clinic.</p>
+                            <p>Contact: Raj Goyal +91 799-2247-030 rajgoyal@duck.com USN:1NH23CS329</p>
+                            <p>Printed on: ${currentDate} at ${currentTime}</p>
+                            <p style="margin-top: 6px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                        </div>
+                        <div class="no-print" style="text-align:center; margin-top:12px;">
+                            <button class="btn" onclick="window.print()">🖨️ Print</button>
+                            <button class="btn" onclick="window.close()" style="background:#6c757d; margin-left:6px;">✕ Close</button>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(() => printWindow.print(), 300);
+            };
+
             const filteredPatients = patients.filter(patient =>
                 patient.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 patient.usn.toLowerCase().includes(searchTerm.toLowerCase())
@@ -2697,18 +2785,29 @@
                                             </td>
                                             <td>{patient.phone || 'N/A'}</td>
                                             <td>
-                                                <button
-                                                    onClick={() => onEdit(patient)}
-                                                    className="btn btn-primary mr-2 text-sm"
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => onDelete(patient.usn)}
-                                                    className="btn btn-secondary text-sm"
-                                                >
-                                                    Delete
-                                                </button>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => onEdit(patient)}
+                                                        className="btn btn-primary text-sm"
+                                                        title="Edit patient"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => printPatient(patient)}
+                                                        className="btn btn-success text-sm"
+                                                        title="Print patient details"
+                                                    >
+                                                        🖨️ Print
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onDelete(patient.usn)}
+                                                        className="btn btn-secondary text-sm"
+                                                        title="Delete patient"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -4454,7 +4553,7 @@
                         {activeTab === 'list' && (
                             <PatientList
                                 patients={patients}
-                                onEdit={setSelectedPatient}
+                                onEdit={(p) => { setSelectedPatient(p); setActiveTab('patients'); }}
                                 onDelete={handleDeletePatient}
                             />
                         )}
