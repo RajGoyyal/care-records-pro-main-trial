@@ -1020,39 +1020,106 @@
                 email: ''
             });
             const [errors, setErrors] = useState({});
+            const [saving, setSaving] = useState(false);
 
             useEffect(() => {
                 if (selectedPatient) {
-                    setFormData(selectedPatient);
+                    setFormData({
+                        usn: selectedPatient.usn || '',
+                        fullName: selectedPatient.fullName || '',
+                        age: selectedPatient.age || '',
+                        gender: selectedPatient.gender || '',
+                        address: selectedPatient.address || '',
+                        phone: selectedPatient.phone || '',
+                        email: selectedPatient.email || ''
+                    });
+                } else {
+                    setFormData({
+                        usn: '', fullName: '', age: '', gender: '', address: '', phone: '', email: ''
+                    });
                 }
             }, [selectedPatient]);
 
             const validateForm = () => {
                 const newErrors = {};
-                if (!formData.usn) newErrors.usn = 'USN is required';
-                if (!formData.fullName) newErrors.fullName = 'Full name is required';
-                if (!formData.age || formData.age < 1) newErrors.age = 'Valid age is required';
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                const phoneRegex = /^\+?[0-9\-\s]{7,15}$/;
+                if (!formData.usn?.trim()) newErrors.usn = 'USN is required';
+                if (!formData.fullName?.trim()) newErrors.fullName = 'Full name is required';
+                if (!formData.age || Number(formData.age) <= 0) newErrors.age = 'Valid age is required';
                 if (!formData.gender) newErrors.gender = 'Gender is required';
+                if (formData.email && !emailRegex.test(formData.email)) newErrors.email = 'Invalid email';
+                if (formData.phone && !phoneRegex.test(formData.phone)) newErrors.phone = 'Invalid phone';
+
+                // Unique USN check when creating new
+                if (!selectedPatient && formData.usn?.trim()) {
+                    const exists = (patients || []).some(p => (p.usn || '').toLowerCase() === formData.usn.trim().toLowerCase());
+                    if (exists) newErrors.usn = 'USN already exists';
+                }
+
                 setErrors(newErrors);
                 return Object.keys(newErrors).length === 0;
             };
 
-            // NOTE: stray code removed; PatientForm should not define printCaseReport
-
             const handleChange = (e) => {
                 const { name, value } = e.target;
                 setFormData(prev => ({ ...prev, [name]: value }));
-                if (errors[name]) {
-                    setErrors(prev => ({ ...prev, [name]: '' }));
+                if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+            };
+
+            const resetForm = () => {
+                setSelectedPatient(null);
+                setFormData({ usn: '', fullName: '', age: '', gender: '', address: '', phone: '', email: '' });
+                setErrors({});
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!validateForm()) return;
+                setSaving(true);
+
+                try {
+                    const payload = {
+                        usn: formData.usn.trim(),
+                        fullName: formData.fullName.trim(),
+                        age: Number(formData.age),
+                        gender: formData.gender,
+                        address: formData.address?.trim() || '',
+                        phone: formData.phone?.trim() || '',
+                        email: formData.email?.trim() || ''
+                    };
+
+                    let updatedList = [];
+                    if (selectedPatient) {
+                        // Update existing
+                        updatedList = (patients || []).map(p => p.usn === selectedPatient.usn ? { ...p, ...payload } : p);
+                    } else {
+                        // Add new
+                        updatedList = [ ...(patients || []), payload ];
+                    }
+
+                    setPatients(updatedList);
+                    saveToStorage('patients', updatedList);
+
+                    // Best-effort server sync
+                    try {
+                        await syncWithDatabase('patients', payload, selectedPatient ? 'PUT' : 'POST');
+                    } catch (_) {}
+
+                    resetForm();
+                    alert(`Patient ${selectedPatient ? 'updated' : 'added'} successfully`);
+                } finally {
+                    setSaving(false);
                 }
             };
 
             return (
                 <div className="card">
-                    <h2 className="text-xl font-semibold mb-4">
-                        {selectedPatient ? 'Edit Patient' : 'Add New Patient'}
-                    </h2>
-                    
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-semibold">{selectedPatient ? 'Edit Patient' : 'Add New Patient'}</h2>
+                        <div className="text-sm text-gray-500">Fields marked * are required</div>
+                    </div>
+
                     <form onSubmit={handleSubmit}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -1063,7 +1130,8 @@
                                     value={formData.usn}
                                     onChange={handleChange}
                                     className="form-input"
-                                    disabled={selectedPatient}
+                                    placeholder="e.g., 1NH21CS001"
+                                    disabled={!!selectedPatient}
                                 />
                                 {errors.usn && <p className="text-red-500 text-sm">{errors.usn}</p>}
                             </div>
@@ -1076,6 +1144,7 @@
                                     value={formData.fullName}
                                     onChange={handleChange}
                                     className="form-input"
+                                    placeholder="Student/Staff name"
                                 />
                                 {errors.fullName && <p className="text-red-500 text-sm">{errors.fullName}</p>}
                             </div>
@@ -1088,6 +1157,7 @@
                                     value={formData.age}
                                     onChange={handleChange}
                                     className="form-input"
+                                    min="1"
                                 />
                                 {errors.age && <p className="text-red-500 text-sm">{errors.age}</p>}
                             </div>
@@ -1116,6 +1186,7 @@
                                     value={formData.address}
                                     onChange={handleChange}
                                     className="form-input"
+                                    placeholder="Optional"
                                 />
                             </div>
 
@@ -1127,7 +1198,9 @@
                                     value={formData.phone}
                                     onChange={handleChange}
                                     className="form-input"
+                                    placeholder="Optional"
                                 />
+                                {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
                             </div>
 
                             <div>
@@ -1138,34 +1211,18 @@
                                     value={formData.email}
                                     onChange={handleChange}
                                     className="form-input"
+                                    placeholder="Optional"
                                 />
+                                {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
                             </div>
                         </div>
 
-                        <div className="flex gap-4 mt-6">
-                            <button type="submit" className="btn btn-primary">
-                                {selectedPatient ? 'Update Patient' : 'Add Patient'}
+                        <div className="flex flex-wrap gap-3 mt-6">
+                            <button type="submit" className="btn btn-primary" disabled={saving}>
+                                {saving ? 'Saving...' : selectedPatient ? 'Update Patient' : 'Add Patient'}
                             </button>
                             {selectedPatient && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedPatient(null);
-                                        setFormData({
-                                            usn: '',
-                                            fullName: '',
-                                            age: '',
-                                            gender: '',
-                                            address: '',
-                                            phone: '',
-                                            email: ''
-                                        });
-                                        setErrors({});
-                                    }}
-                                    className="btn btn-secondary"
-                                >
-                                    Cancel Edit
-                                </button>
+                                <button type="button" onClick={resetForm} className="btn btn-secondary">Cancel Edit</button>
                             )}
                         </div>
                     </form>
