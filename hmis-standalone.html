@@ -1007,6 +1007,7 @@
                 </div>
             );
         };
+        
 
         // Patient Form Component
         const PatientForm = ({ patients, setPatients, selectedPatient, setSelectedPatient }) => {
@@ -3708,12 +3709,23 @@
                                 >
                                     💾 Save Case Report
                                 </button>
-                                <button
-                                    onClick={printCaseReport}
-                                    className="btn btn-primary"
-                                    disabled={!formData.usn || !formData.diagnosis}
+                                <button 
+                                    type="button" 
+                                    onClick={async () => {
+                                        console.log('Testing database connection...');
+                                        const isHealthy = await checkServerHealth();
+                                        console.log('Server health check result:', isHealthy);
+                                        serverAvailable = isHealthy;
+                                        
+                                        if (isHealthy) {
+                                            alert('✅ Database connection successful!');
+                                        } else {
+                                            alert('❌ Database connection failed. Please ensure the Python server is running on localhost:5000');
+                                        }
+                                    }}
+                                    className="btn bg-blue-500 hover:bg-blue-600 text-white"
                                 >
-                                    🖨️ Generate & Print Report
+                                    🔧 Test DB Connection
                                 </button>
                             </div>
                         </div>
@@ -3867,13 +3879,23 @@
                                 >
                                     💾 Save Sick Intimation
                                 </button>
-                                <button
-                                    onClick={printSickIntimation}
-                                    className="btn btn-primary"
-                                    disabled={!sickFormData.usn || !sickFormData.reason || !sickFormData.sickLeaveFrom || !sickFormData.sickLeaveTo ||
-                                             (selectedPatientDetails && safeCaseReports.filter(cr => cr.usn === selectedPatientDetails.usn).length === 0)}
+                                <button 
+                                    type="button" 
+                                    onClick={async () => {
+                                        console.log('Testing database connection...');
+                                        const isHealthy = await checkServerHealth();
+                                        console.log('Server health check result:', isHealthy);
+                                        serverAvailable = isHealthy;
+                                        
+                                        if (isHealthy) {
+                                            alert('✅ Database connection successful!');
+                                        } else {
+                                            alert('❌ Database connection failed. Please ensure the Python server is running on localhost:5000');
+                                        }
+                                    }}
+                                    className="btn bg-blue-500 hover:bg-blue-600 text-white"
                                 >
-                                    🖨️ Generate & Print Certificate
+                                    🔧 Test DB Connection
                                 </button>
                             </div>
                         </div>
