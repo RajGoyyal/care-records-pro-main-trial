@@ -540,6 +540,23 @@ def api_patients():
             conn.close()
 
 
+@app.route("/api/patients/<usn>", methods=["DELETE"])
+def api_patient_delete(usn: str):
+    """Delete a patient and cascade related records."""
+    if not usn:
+        return jsonify({"error": "USN required"}), 400
+    conn = get_db()
+    cur = conn.cursor()
+    # Ensure patient exists
+    exists = cur.execute("SELECT 1 FROM patients WHERE usn=?", (usn,)).fetchone()
+    if not exists:
+        conn.close()
+        return jsonify({"ok": True, "deleted": False})
+    cur.execute("DELETE FROM patients WHERE usn=?", (usn,))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "deleted": True})
+
 @app.route("/api/vitals", methods=["GET", "POST"])
 def api_vitals():
     if request.method == "GET":
@@ -1196,19 +1213,44 @@ def sync_patients():
         conn = get_db()
         cur = conn.cursor()
         synced_count = 0
+        skipped_count = 0
+        errors: List[str] = []
         
         for patient in patients_data:
             try:
-                # Use INSERT OR REPLACE to handle duplicates
+                # Normalize and validate minimal fields
+                usn = (patient.get('usn') or '').strip()
+                full_name = (patient.get('fullName') or '').strip()
+                # Age: cast to int; if missing/invalid, default to 0
+                age_val = patient.get('age')
+                try:
+                    age = int(age_val) if age_val is not None and str(age_val).strip() != '' else 0
+                except Exception:
+                    age = 0
+                gender = (patient.get('gender') or '').strip() or 'Unknown'
+                # Contact/address: coalesce to empty strings to satisfy NOT NULL constraint
+                contact = (patient.get('contact') or patient.get('phone') or '').strip()
+                address = (patient.get('address') or '').strip()
+
+                # Require at least USN and full name; skip otherwise
+                if not usn or not full_name:
+                    skipped_count += 1
+                    continue
+
+                # Use INSERT OR REPLACE to handle duplicates safely
                 cur.execute(
                     """INSERT OR REPLACE INTO patients (usn, full_name, age, gender, contact, address)
                        VALUES (?, ?, ?, ?, ?, ?)""",
-                    (patient.get('usn'), patient.get('fullName'), patient.get('age'), 
-                     patient.get('gender'), patient.get('contact'), patient.get('address'))
+                    (usn, full_name, age, gender, contact or "", address or "")
                 )
                 synced_count += 1
             except Exception as e:
-                print(f"Error syncing patient {patient.get('usn', 'unknown')}: {e}")
+                # Log and continue; don't let a single bad record block the batch
+                err_usn = patient.get('usn', 'unknown')
+                msg = f"Error syncing patient {err_usn}: {e}"
+                print(msg)
+                errors.append(msg)
+                skipped_count += 1
         
         conn.commit()
         conn.close()
@@ -1216,7 +1258,8 @@ def sync_patients():
         return jsonify({
             "status": "success",
             "synced_count": synced_count,
-            "total_received": len(patients_data)
+            "total_received": len(patients_data),
+            "skipped_count": skipped_count
         })
     
     except Exception as e:

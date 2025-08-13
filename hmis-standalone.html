@@ -243,6 +243,23 @@
             
             try {
                 console.log('Starting offline data sync...');
+                // First process any pending patient deletions queued while offline
+                try {
+                    const pendingDeletes = loadFromStorage('deleted_usns', []);
+                    if (serverAvailable && Array.isArray(pendingDeletes) && pendingDeletes.length > 0) {
+                        const remaining = [];
+                        for (const usn of pendingDeletes) {
+                            try {
+                                await apiRequest(`/api/patients/${encodeURIComponent(usn)}`, { method: 'DELETE' });
+                                console.log(`Deleted patient ${usn} on server`);
+                            } catch (e) {
+                                console.warn(`Failed to delete patient ${usn} on server; will retry later`, e);
+                                remaining.push(usn);
+                            }
+                        }
+                        saveToStorage('deleted_usns', remaining);
+                    }
+                } catch (e) { console.warn('Error processing pending deletions', e); }
                 
                 // Get all offline data and create backup
                 const offlinePatients = loadFromStorage('patients', []);
@@ -272,11 +289,26 @@
                 };
 
                 // Bulk sync patients
-                if (offlinePatients.length > 0) {
+                                if (offlinePatients.length > 0) {
                     try {
-                        const result = await apiRequest('/api/sync/patients', {
+                                                // Normalize patients to avoid NULLs on NOT NULL DB columns
+                                                const normalizedPatients = offlinePatients
+                                                    .map(p => {
+                                                        const usn = (p.usn ?? '').toString().trim();
+                                                        const fullName = (p.fullName ?? p.full_name ?? '').toString().trim();
+                                                        const ageNum = Number(p.age);
+                                                        const age = Number.isFinite(ageNum) ? ageNum : 0;
+                                                        const gender = (p.gender ?? 'Unknown').toString().trim() || 'Unknown';
+                                                        const phone = ((p.contact ?? p.phone ?? '') + '').trim();
+                                                        const address = ((p.address ?? '') + '').trim();
+                                                        return { ...p, usn, fullName, age, gender, contact: phone, phone, address };
+                                                    })
+                                                    // Skip clearly invalid entries missing identifiers
+                                                    .filter(p => p.usn && p.fullName);
+
+                                                const result = await apiRequest('/api/sync/patients', {
                             method: 'POST',
-                            body: JSON.stringify(offlinePatients)
+                                                        body: JSON.stringify(normalizedPatients)
                         });
                         syncResults.patients = {
                             synced: result.synced_count,
@@ -286,7 +318,17 @@
                     } catch (error) {
                         console.warn('Failed to bulk sync patients:', error);
                         // Fallback to individual sync
-                        for (const patient of offlinePatients) {
+                                                for (const raw of offlinePatients) {
+                                                        const patient = (() => {
+                                                                const usn = (raw.usn ?? '').toString().trim();
+                                                                const fullName = (raw.fullName ?? raw.full_name ?? '').toString().trim();
+                                                                const ageNum = Number(raw.age);
+                                                                const age = Number.isFinite(ageNum) ? ageNum : 0;
+                                                                const gender = (raw.gender ?? 'Unknown').toString().trim() || 'Unknown';
+                                                                const phone = ((raw.contact ?? raw.phone ?? '') + '').trim();
+                                                                const address = ((raw.address ?? '') + '').trim();
+                                                                return { ...raw, usn, fullName, age, gender, contact: phone, phone, address };
+                                                        })();
                             try {
                                 await apiRequest('/api/patients', {
                                     method: 'POST',
@@ -4296,9 +4338,14 @@
                             // Now refresh data from server (this will merge server data with synced offline data)
                             try {
                                 console.log('Refreshing data from server...');
-                                const serverPatients = await apiRequest('/api/patients');
+                                let serverPatients = await apiRequest('/api/patients');
                                 const serverVitals = await apiRequest('/api/vitals');
                                 const serverPrescriptions = await apiRequest('/api/prescriptions');
+                                // Respect locally queued deletions to avoid reappearing entries
+                                const deletedUSNs = loadFromStorage('deleted_usns', []);
+                                if (Array.isArray(deletedUSNs) && deletedUSNs.length > 0) {
+                                    serverPatients = (serverPatients || []).filter(p => !deletedUSNs.includes(p.usn));
+                                }
                                 
                                 // Merge server data with any remaining local data instead of replacing
                                 const mergedPatients = mergeArrays(patients, serverPatients || [], 'usn');
@@ -4357,14 +4404,37 @@
                 }
             }, [prescriptions, dbConnected]);
 
-            const handleDeletePatient = (usn) => {
-                if (confirm('Are you sure you want to delete this patient? This will also remove all associated vitals and prescriptions.')) {
-                    setPatients(prev => prev.filter(p => p.usn !== usn));
-                    setVitals(prev => prev.filter(v => v.usn !== usn));
-                    setPrescriptions(prev => prev.filter(r => r.usn !== usn));
-                    
-                    if (selectedPatient?.usn === usn) {
-                        setSelectedPatient(null);
+            const handleDeletePatient = async (usn) => {
+                if (!usn) return;
+                if (!confirm('Are you sure you want to delete this patient? This will also remove all associated vitals and prescriptions.')) return;
+                
+                // Optimistically update UI and local storage
+                setPatients(prev => prev.filter(p => p.usn !== usn));
+                setVitals(prev => prev.filter(v => v.usn !== usn));
+                setPrescriptions(prev => prev.filter(r => r.usn !== usn));
+                if (selectedPatient?.usn === usn) {
+                    setSelectedPatient(null);
+                }
+
+                // Try to delete on server; if offline, queue for later
+                let deletedOnServer = false;
+                try {
+                    if (serverAvailable) {
+                        await apiRequest(`/api/patients/${encodeURIComponent(usn)}`, { method: 'DELETE' });
+                        deletedOnServer = true;
+                    }
+                } catch (e) {
+                    deletedOnServer = false;
+                }
+                const queued = loadFromStorage('deleted_usns', []);
+                if (!deletedOnServer) {
+                    const set = new Set(Array.isArray(queued) ? queued : []);
+                    set.add(usn);
+                    saveToStorage('deleted_usns', Array.from(set));
+                } else {
+                    // Ensure it's not in queue anymore
+                    if (Array.isArray(queued) && queued.length > 0) {
+                        saveToStorage('deleted_usns', queued.filter(x => x !== usn));
                     }
                 }
             };
