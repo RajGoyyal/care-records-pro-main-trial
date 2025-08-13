@@ -44,299 +44,204 @@
             width: 100%;
             padding: 0.5rem;
             border: 1px solid #d1d5db;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-        }
-        .form-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        .tab {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-        }
-        .tab.active {
-            border-bottom-color: #3b82f6;
-            color: #3b82f6;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #3b82f6;
-        }
-        .stat-label {
-            color: #6b7280;
-            font-size: 0.875rem;
-        }
-        .alert {
-            padding: 1rem;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-        }
-        .alert-info {
-            background: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
-        }
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .table th,
-        .table td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .table th {
-            background: #f9fafb;
-            font-weight: 600;
-        }
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
-            border-radius: 9999px;
-            font-weight: 500;
-        }
-        .badge-green {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        .badge-blue {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-        .badge-yellow {
-            background: #fef3c7;
-            color: #92400e;
-        }
-        .badge-red {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        .badge-pink {
-            background: #fce7f3;
-            color: #be185d;
-        }
-        .badge-purple {
-            background: #ede9fe;
-            color: #7c3aed;
-        }
-        .badge-orange {
-            background: #fed7aa;
-            color: #c2410c;
-        }
-        .badge-gray {
-            background: #f3f4f6;
-            color: #374151;
-        }
-        .btn-success {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .btn-success:hover {
-            background: #059669;
-            transform: translateY(-1px);
-        }
-        .btn-info {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .btn-info:hover {
-            background: #2563eb;
-            transform: translateY(-1px);
-        }
-    </style>
-</head>
-<body class="bg-gray-100">
-    <div id="root"></div>
+                <script type="text/babel">
+                    const { useState, useEffect, useMemo } = React;
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+                    // Simple storage helpers
+                    const saveToStorage = (key, data) => {
+                        try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+                    };
+                    const loadFromStorage = (key, fallback) => {
+                        try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
+                    };
 
-        // API utilities with fallback to localStorage
-        let serverAvailable = false;
-        let syncInProgress = false;
-        // Configurable backend base URL (change via window.BACKEND_BASE or localStorage BACKEND_BASE)
-        const BACKEND_BASE = (
-            (typeof window !== 'undefined' && window.BACKEND_BASE) ||
-            localStorage.getItem('BACKEND_BASE') ||
-            'http://localhost:5000'
-        ).replace(/\/$/, '');
+                    // Modal for Add/Edit Patient
+                    const PatientModal = ({ open, onClose, onSave, initial }) => {
+                        const [form, setForm] = useState(() => initial || { usn: '', fullName: '', age: '', gender: '', phone: '', email: '' });
+                        const [errors, setErrors] = useState({});
+                        useEffect(() => { setForm(initial || { usn: '', fullName: '', age: '', gender: '', phone: '', email: '' }); setErrors({}); }, [initial, open]);
+                        if (!open) return null;
 
-        const checkServerHealth = async () => {
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-                
-                const response = await fetch(`${BACKEND_BASE}/api/health`, { 
-                    method: 'GET',
-                    signal: controller.signal,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                clearTimeout(timeoutId);
-                return response.ok;
-            } catch (error) {
-                console.warn('Health check failed:', error.message);
-                return false;
-            }
-        };
-
-    const apiRequest = async (url, options = {}) => {
-            try {
-        const response = await fetch(`${BACKEND_BASE}${url}`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    },
-                    ...options
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
-                return await response.json();
-            } catch (error) {
-                console.warn('API request failed, using localStorage:', error);
-                throw error;
-            }
-        };
-
-        // Enhanced sync mechanism
-        const syncOfflineDataToServer = async () => {
-            if (syncInProgress) return;
-            syncInProgress = true;
-            
-            try {
-                console.log('Starting offline data sync...');
-                
-                // Get all offline data and create backup
-                const offlinePatients = loadFromStorage('patients', []);
-                const offlineVitals = loadFromStorage('vitals', []);
-                const offlinePrescriptions = loadFromStorage('prescriptions', []);
-                const offlineCaseReports = loadFromStorage('caseReports', []);
-                const offlineSickIntimations = loadFromStorage('sickIntimations', []);
-
-                // Create backup before sync
-                if (offlinePatients.length > 0 || offlineVitals.length > 0 || offlinePrescriptions.length > 0 || 
-                    offlineCaseReports.length > 0 || offlineSickIntimations.length > 0) {
-                    console.log('Creating backup of offline data...');
-                    saveToStorage('backup_patients', offlinePatients);
-                    saveToStorage('backup_vitals', offlineVitals);
-                    saveToStorage('backup_prescriptions', offlinePrescriptions);
-                    saveToStorage('backup_caseReports', offlineCaseReports);
-                    saveToStorage('backup_sickIntimations', offlineSickIntimations);
-                    saveToStorage('backup_timestamp', new Date().toISOString());
-                }
-
-                let syncResults = {
-                    patients: { synced: 0, total: 0 },
-                    vitals: { synced: 0, total: 0 },
-                    prescriptions: { synced: 0, total: 0 },
-                    caseReports: { synced: 0, total: 0 },
-                    sickIntimations: { synced: 0, total: 0 }
-                };
-
-                // Bulk sync patients
-                if (offlinePatients.length > 0) {
-                    try {
-                        const result = await apiRequest('/api/sync/patients', {
-                            method: 'POST',
-                            body: JSON.stringify(offlinePatients)
-                        });
-                        syncResults.patients = {
-                            synced: result.synced_count,
-                            total: result.total_received
+                        const validate = () => {
+                            const e = {};
+                            if (!form.usn) e.usn = 'USN required';
+                            if (!form.fullName) e.fullName = 'Name required';
+                            if (!form.age || isNaN(form.age) || +form.age <= 0) e.age = 'Valid age required';
+                            if (!form.gender) e.gender = 'Gender required';
+                            if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email';
+                            if (form.phone && !/^\+?\d{7,15}$/.test(form.phone)) e.phone = 'Invalid phone';
+                            setErrors(e);
+                            return Object.keys(e).length === 0;
                         };
-                        console.log(`Bulk synced ${result.synced_count}/${result.total_received} patients`);
-                    } catch (error) {
-                        console.warn('Failed to bulk sync patients:', error);
-                        // Fallback to individual sync
-                        for (const patient of offlinePatients) {
-                            try {
-                                await apiRequest('/api/patients', {
-                                    method: 'POST',
-                                    body: JSON.stringify(patient)
-                                });
-                                syncResults.patients.synced++;
-                            } catch (err) {
-                                console.warn(`Failed to sync patient ${patient.fullName}:`, err);
-                            }
-                        }
-                        syncResults.patients.total = offlinePatients.length;
-                    }
-                }
 
-                // Bulk sync vitals
-                if (offlineVitals.length > 0) {
-                    try {
-                        const result = await apiRequest('/api/sync/vitals', {
-                            method: 'POST',
-                            body: JSON.stringify(offlineVitals)
-                        });
-                        syncResults.vitals = {
-                            synced: result.synced_count,
-                            total: result.total_received
+                        const submit = (e) => {
+                            e.preventDefault();
+                            if (!validate()) return;
+                            onSave({ ...form, age: +form.age });
                         };
-                        console.log(`Bulk synced ${result.synced_count}/${result.total_received} vitals`);
-                    } catch (error) {
-                        console.warn('Failed to bulk sync vitals:', error);
-                        // Fallback to individual sync
-                        for (const vital of offlineVitals) {
-                            try {
-                                await apiRequest('/api/vitals', {
-                                    method: 'POST',
-                                    body: JSON.stringify(vital)
-                                });
-                                syncResults.vitals.synced++;
-                            } catch (err) {
-                                console.warn(`Failed to sync vitals for USN ${vital.usn}:`, err);
-                            }
-                        }
-                        syncResults.vitals.total = offlineVitals.length;
-                    }
-                }
 
-                // Bulk sync prescriptions
-                if (offlinePrescriptions.length > 0) {
-                    try {
-                        const result = await apiRequest('/api/sync/prescriptions', {
-                            method: 'POST',
-                            body: JSON.stringify(offlinePrescriptions)
+                        const inputCls = (hasErr) => `form-input ${hasErr ? 'border-red-500' : ''}`;
+
+                        return (
+                            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                                <div className="card w-full max-w-lg">
+                                    <h3 className="text-xl font-semibold mb-4">{initial ? 'Edit Patient' : 'Add Patient'}</h3>
+                                    <form onSubmit={submit} className="space-y-3">
+                                        <div>
+                                            <label className="block text-sm font-medium">USN*</label>
+                                            <input className={inputCls(errors.usn)} value={form.usn} onChange={(e)=>setForm(f=>({...f,usn:e.target.value}))} disabled={!!initial} />
+                                            {errors.usn && <p className="text-red-600 text-sm mt-1">{errors.usn}</p>}
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium">Full Name*</label>
+                                            <input className={inputCls(errors.fullName)} value={form.fullName} onChange={(e)=>setForm(f=>({...f,fullName:e.target.value}))} />
+                                            {errors.fullName && <p className="text-red-600 text-sm mt-1">{errors.fullName}</p>}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-medium">Age*</label>
+                                                <input type="number" min="1" className={inputCls(errors.age)} value={form.age} onChange={(e)=>setForm(f=>({...f,age:e.target.value}))} />
+                                                {errors.age && <p className="text-red-600 text-sm mt-1">{errors.age}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium">Gender*</label>
+                                                <select className={inputCls(errors.gender)} value={form.gender} onChange={(e)=>setForm(f=>({...f,gender:e.target.value}))}>
+                                                    <option value="">Select</option>
+                                                    <option>Male</option>
+                                                    <option>Female</option>
+                                                    <option>Other</option>
+                                                </select>
+                                                {errors.gender && <p className="text-red-600 text-sm mt-1">{errors.gender}</p>}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-medium">Phone</label>
+                                                <input className={inputCls(errors.phone)} value={form.phone} onChange={(e)=>setForm(f=>({...f,phone:e.target.value}))} />
+                                                {errors.phone && <p className="text-red-600 text-sm mt-1">{errors.phone}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium">Email</label>
+                                                <input className={inputCls(errors.email)} value={form.email} onChange={(e)=>setForm(f=>({...f,email:e.target.value}))} />
+                                                {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+                                            <button type="submit" className="btn btn-success">{initial ? 'Update' : 'Add'}</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        );
+                    };
+
+                    // Patients Tab
+                    const PatientsTab = () => {
+                        const [patients, setPatients] = useState(() => loadFromStorage('patients', []));
+                        const [search, setSearch] = useState('');
+                        const [modalOpen, setModalOpen] = useState(false);
+                        const [editing, setEditing] = useState(null);
+
+                        useEffect(() => { saveToStorage('patients', patients); }, [patients]);
+
+                        const filtered = useMemo(() => {
+                            const q = search.trim().toLowerCase();
+                            if (!q) return patients;
+                            return patients.filter(p =>
+                                (p.fullName||'').toLowerCase().includes(q) ||
+                                (p.usn||'').toLowerCase().includes(q) ||
+                                (p.phone||'').toLowerCase().includes(q)
+                            );
+                        }, [patients, search]);
+
+                        const addOrUpdate = (record) => {
+                            if (editing) {
+                                setPatients(prev => prev.map(p => p.usn === editing.usn ? { ...editing, ...record } : p));
+                                setEditing(null);
+                            } else {
+                                if (patients.some(p => p.usn === record.usn)) { alert('USN already exists.'); return; }
+                                setPatients(prev => [...prev, record]);
+                            }
+                            setModalOpen(false);
+                        };
+
+                        const remove = (usn) => {
+                            if (!confirm('Delete this patient?')) return;
+                            setPatients(prev => prev.filter(p => p.usn !== usn));
+                        };
+
+                        return (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-2xl font-bold">Patients</h2>
+                                    <button className="btn btn-primary" onClick={()=>{ setEditing(null); setModalOpen(true); }}>+ Add Patient</button>
+                                </div>
+                                <div className="grid md:grid-cols-3 gap-3">
+                                    <input className="form-input md:col-span-2" placeholder="Search by name, USN, or phone" value={search} onChange={e=>setSearch(e.target.value)} />
+                                    <div className="text-sm text-gray-600 self-center">Total: {patients.length} • Shown: {filtered.length}</div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="table">
+                                        <thead>
+                                            <tr>
+                                                <th>USN</th><th>Name</th><th>Age</th><th>Gender</th><th>Phone</th><th>Email</th><th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filtered.length === 0 ? (
+                                                <tr><td colSpan="7" className="text-center text-gray-500">No patients found.</td></tr>
+                                            ) : filtered.map(p => (
+                                                <tr key={p.usn} className="hover:bg-blue-50">
+                                                    <td>{p.usn}</td>
+                                                    <td>{p.fullName}</td>
+                                                    <td>{p.age}</td>
+                                                    <td>{p.gender}</td>
+                                                    <td>{p.phone || '-'}</td>
+                                                    <td>{p.email || '-'}</td>
+                                                    <td>
+                                                        <button className="btn btn-info mr-2" onClick={()=>{ setEditing(p); setModalOpen(true); }}>Edit</button>
+                                                        <button className="btn btn-secondary" onClick={()=>remove(p.usn)}>Delete</button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <PatientModal open={modalOpen} onClose={()=>setModalOpen(false)} onSave={addOrUpdate} initial={editing} />
+                            </div>
+                        );
+                    };
+
+                    // App Shell with two tabs (Dashboard placeholder + Patients)
+                    const App = () => {
+                        const [tab, setTab] = useState('patients');
+                        return (
+                            <div className="min-h-screen bg-gray-100">
+                                <header className="bg-white shadow">
+                                    <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+                                        <h1 className="text-xl font-semibold">New Horizon Sanjeevani Clinic - HMIS</h1>
+                                        <nav className="flex gap-2">
+                                            <button className={`tab ${tab==='dashboard'?'active':''}`} onClick={()=>setTab('dashboard')}>Dashboard</button>
+                                            <button className={`tab ${tab==='patients'?'active':''}`} onClick={()=>setTab('patients')}>Patients</button>
+                                        </nav>
+                                    </div>
+                                </header>
+                                <main className="max-w-5xl mx-auto p-4">
+                                    {tab === 'dashboard' && (
+                                        <div className="card">
+                                            <h2 className="text-2xl font-bold mb-2">Dashboard</h2>
+                                            <p className="text-gray-600">Welcome to HMIS. Use the Patients tab to manage records.</p>
+                                        </div>
+                                    )}
+                                    {tab === 'patients' && <PatientsTab />}
+                                </main>
+                            </div>
+                        );
+                    };
+
+                    ReactDOM.render(<App />, document.getElementById('root'));
+                </script>
                         });
                         syncResults.prescriptions = {
                             synced: result.synced_count,
