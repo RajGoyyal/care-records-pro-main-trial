@@ -698,6 +698,11 @@
             const [currentTime, setCurrentTime] = useState(new Date());
             const [quickSearchTerm, setQuickSearchTerm] = useState('');
             const [showQuickSearch, setShowQuickSearch] = useState(false);
+            const genderChartRef = React.useRef(null);
+            const priorityChartRef = React.useRef(null);
+            const ageChartRef = React.useRef(null);
+            const followUpChartRef = React.useRef(null);
+            const [hoverInfo, setHoverInfo] = useState(null);
             
             // Update time every second
             useEffect(() => {
@@ -706,6 +711,17 @@
                 }, 1000);
                 return () => clearInterval(timer);
             }, []);
+            useEffect(() => {
+                const move = (e) => {
+                    const tip = document.getElementById('chart-hover-tooltip');
+                    if (tip) {
+                        tip.style.setProperty('--mx', (e.clientX + 12)+ 'px');
+                        tip.style.setProperty('--my', (e.clientY + 12)+ 'px');
+                    }
+                };
+                window.addEventListener('mousemove', move);
+                return () => window.removeEventListener('mousemove', move);
+            }, [hoverInfo]);
             
             const safePatients = patients || [];
             const safeVitals = vitals || [];
@@ -804,6 +820,246 @@
                 }] : [])
             ];
 
+            // --- Chart Drawing Helpers ---
+            const drawDonut3D = (canvas, slices, options = {}) => {
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                // High DPI & responsive sizing
+                const containerW = Math.max(180, Math.floor(canvas.getBoundingClientRect().width) || (options.width || 260));
+                const desiredW = options.width || containerW;
+                const desiredH = options.height || 220;
+                const dpr = window.devicePixelRatio || 1;
+                if (canvas._lastW !== desiredW || canvas._lastH !== desiredH || canvas._lastDPR !== dpr) {
+                    canvas.width = desiredW * dpr;
+                    canvas.height = desiredH * dpr;
+                    canvas.style.width = desiredW + 'px';
+                    canvas.style.height = desiredH + 'px';
+                    canvas._lastW = desiredW; canvas._lastH = desiredH; canvas._lastDPR = dpr;
+                }
+                ctx.reset?.();
+                ctx.scale(dpr, dpr);
+                ctx.imageSmoothingEnabled = true;
+                const w = desiredW;
+                const h = desiredH;
+                const cx = w / 2;
+                const cy = h / 2 - 5;
+                const radius = Math.min(w, h) / 2 - 24;
+                const thickness = options.thickness || 34;
+                const depth = options.depth || 14; // pseudo 3D depth
+                const total = slices.reduce((s, sl) => s + (sl.value || 0), 0) || 1;
+                ctx.clearRect(0,0,w,h);
+
+                // Animation progress
+                const startTime = performance.now();
+                const duration = 600; // ms
+
+                const animate = () => {
+                    const now = performance.now();
+                    const t = Math.min(1, (now - startTime) / duration);
+                    renderFrame(t);
+                    if (t < 1) requestAnimationFrame(animate);
+                };
+
+                const renderFrame = (progress) => {
+                    ctx.clearRect(0,0,w,h);
+                    let startAngle = -Math.PI/2;
+                    const drawn = slices.map(sl => {
+                        const angleFull = (sl.value / total) * Math.PI * 2;
+                        const angle = angleFull * progress;
+                        const record = { ...sl, start: startAngle, end: startAngle + angle, targetEnd: startAngle + angleFull };
+                        startAngle += angleFull; // for target alignment
+                        return record;
+                    });
+                    // Draw depth
+                    drawn.forEach(sl => {
+                        if (sl.start === sl.end) return;
+                        ctx.beginPath();
+                        const gradSide = ctx.createLinearGradient(0, cy, 0, cy + depth);
+                        gradSide.addColorStop(0, shadeColor(sl.color, -10));
+                        gradSide.addColorStop(1, shadeColor(sl.color, -40));
+                        ctx.fillStyle = gradSide;
+                        ctx.moveTo(cx + Math.cos(sl.start)*radius, cy + Math.sin(sl.start)*radius + depth);
+                        ctx.arc(cx, cy + depth, radius, sl.start, sl.end);
+                        ctx.lineTo(cx + Math.cos(sl.end)*radius, cy + Math.sin(sl.end)*radius);
+                        ctx.arc(cx, cy, radius, sl.end, sl.start, true);
+                        ctx.closePath();
+                        ctx.fill();
+                    });
+                    // Draw top slices
+                    drawn.forEach(sl => {
+                        if (sl.start === sl.end) return;
+                        const isHover = hoverInfo && hoverInfo.id === sl.id;
+                        const explode = isHover ? 6 : 0;
+                        const mid = (sl.start + sl.end)/2;
+                        const ox = Math.cos(mid) * explode;
+                        const oy = Math.sin(mid) * explode;
+                        // Gradient fill
+                        const grad = ctx.createRadialGradient(cx+ox, cy+oy, radius - thickness, cx+ox, cy+oy, radius);
+                        grad.addColorStop(0, shadeColor(sl.color, 25));
+                        grad.addColorStop(0.6, sl.color);
+                        grad.addColorStop(1, shadeColor(sl.color, -10));
+                        ctx.beginPath();
+                        ctx.fillStyle = grad;
+                        ctx.moveTo(cx+ox, cy+oy);
+                        ctx.arc(cx+ox, cy+oy, radius, sl.start, sl.end);
+                        ctx.closePath();
+                        ctx.fill();
+                        // Cut inner hole
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.beginPath();
+                        ctx.moveTo(cx+ox, cy+oy);
+                        ctx.arc(cx+ox, cy+oy, radius - thickness, sl.start, sl.end);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalCompositeOperation = 'source-over';
+                    });
+                    // Inner outline
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                    ctx.lineWidth = 2;
+                    ctx.arc(cx, cy, radius - thickness, 0, Math.PI*2);
+                    ctx.stroke();
+                    // Center label (dynamic if hover)
+                    ctx.fillStyle = '#111827';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    const lines = (hoverInfo && hoverInfo.type === options.id)
+                        ? [hoverInfo.label, String(hoverInfo.value)]
+                        : (options.centerText || '').split('\n');
+                    ctx.font = '600 15px system-ui';
+                    if (lines.length === 2) {
+                        ctx.fillText(lines[0], cx, cy - 9);
+                        ctx.font = '700 17px system-ui';
+                        ctx.fillText(lines[1], cx, cy + 10);
+                    } else {
+                        ctx.fillText(lines.join(' '), cx, cy);
+                    }
+                    // Metadata for hover detection
+                    canvas._slicesMeta = drawn.map(sl => ({
+                        id: sl.id,
+                        label: sl.label,
+                        value: sl.value,
+                        start: sl.start,
+                        end: sl.end,
+                        cx, cy, radius, inner: radius - thickness, color: sl.color
+                    }));
+                };
+                animate();
+            };
+
+            const shadeColor = (col, amt) => {
+                // Simple shade/brighten hex
+                try {
+                    let usePound = false;
+                    if (col[0] === '#') { col = col.slice(1); usePound = true; }
+                    const num = parseInt(col,16);
+                    let r = (num >> 16) + amt; r = Math.max(Math.min(255,r),0);
+                    let g = ((num >> 8) & 0x00FF) + amt; g = Math.max(Math.min(255,g),0);
+                    let b = (num & 0x0000FF) + amt; b = Math.max(Math.min(255,b),0);
+                    return (usePound?'#':'#') + (r.toString(16).padStart(2,'0')) + (g.toString(16).padStart(2,'0')) + (b.toString(16).padStart(2,'0'));
+                } catch { return col; }
+            };
+
+            // Prepare slice data
+            // Bar chart for age distribution
+            const drawAgeBars = (canvas, groups) => {
+                if(!canvas) return; const ctx = canvas.getContext('2d');
+                const containerW = Math.max(240, Math.floor(canvas.getBoundingClientRect().width) || 300);
+                const desiredW = containerW; const desiredH = 200; const dpr = window.devicePixelRatio || 1;
+                if (canvas._lastW !== desiredW || canvas._lastH !== desiredH || canvas._lastDPR !== dpr) {
+                    canvas.width = desiredW * dpr; canvas.height = desiredH * dpr; canvas.style.width = desiredW+'px'; canvas.style.height = desiredH+'px';
+                    canvas._lastW = desiredW; canvas._lastH = desiredH; canvas._lastDPR = dpr;
+                }
+                ctx.reset?.(); ctx.scale(dpr,dpr); ctx.imageSmoothingEnabled=true;
+                const w = desiredW; const h = desiredH; ctx.clearRect(0,0,w,h);
+                const labels = Object.keys(groups); const values = labels.map(l=>groups[l]);
+                const max = Math.max(1, ...values);
+                const barH = 24; const gap = 10; const chartHeight = labels.length * (barH + gap) - gap; const startY = (h - chartHeight)/2;
+                ctx.font = '12px system-ui'; ctx.textBaseline='middle';
+                const start = performance.now(); const dur = 500;
+                const animate = () => { const t=Math.min(1,(performance.now()-start)/dur); render(t); if(t<1) requestAnimationFrame(animate); };
+                const render=(prog)=>{ ctx.clearRect(0,0,w,h); labels.forEach((lab,i)=>{ const val=values[i]; const pct=val/max; const barW=(w-120)*pct*prog; const y=startY + i*(barH+gap);
+                    ctx.fillStyle='#e5e7eb'; ctx.fillRect(100,y,w-120,barH);
+                    const grad = ctx.createLinearGradient(100,y,100+barW,y+barH);
+                    grad.addColorStop(0,'#6366f1'); grad.addColorStop(1,'#3b82f6');
+                    ctx.fillStyle=grad; ctx.fillRect(100,y,barW,barH);
+                    ctx.fillStyle='#374151'; ctx.fillText(lab,10,y+barH/2);
+                    ctx.fillStyle='#111827'; ctx.font='600 12px system-ui'; ctx.fillText(val.toString(), 110+barW, y+barH/2); ctx.font='12px system-ui'; }); };
+                animate();
+            };
+            // Line chart for follow-ups next 7 days
+            const drawFollowUpTimeline = (canvas, dataPoints) => {
+                if(!canvas) return; const ctx = canvas.getContext('2d');
+                const containerW = Math.max(240, Math.floor(canvas.getBoundingClientRect().width) || 300);
+                const desiredW = containerW; const desiredH = 200; const dpr = window.devicePixelRatio || 1;
+                if (canvas._lastW !== desiredW || canvas._lastH !== desiredH || canvas._lastDPR !== dpr) {
+                    canvas.width = desiredW * dpr; canvas.height = desiredH * dpr; canvas.style.width = desiredW+'px'; canvas.style.height = desiredH+'px';
+                    canvas._lastW = desiredW; canvas._lastH = desiredH; canvas._lastDPR = dpr;
+                }
+                ctx.reset?.(); ctx.scale(dpr,dpr); ctx.imageSmoothingEnabled=true;
+                const w = desiredW; const h = desiredH; ctx.clearRect(0,0,w,h);
+                if(dataPoints.length===0) return; const max=Math.max(1,...dataPoints.map(d=>d.count)); const pad=30; const innerW=w-pad*2; const innerH=h-pad*2;
+                const start=performance.now(); const dur=600;
+                const animate=()=>{ const t=Math.min(1,(performance.now()-start)/dur); render(t); if(t<1) requestAnimationFrame(animate); };
+                const render=(prog)=>{ ctx.clearRect(0,0,w,h); ctx.strokeStyle='#d1d5db'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pad,h-pad); ctx.lineTo(w-pad,h-pad); ctx.moveTo(pad,h-pad); ctx.lineTo(pad,pad); ctx.stroke();
+                    const stepX = innerW/(dataPoints.length-1 || 1); ctx.beginPath(); dataPoints.forEach((pt,i)=>{ const x=pad+i*stepX; const y=h-pad - (pt.count/max)*innerH*prog; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }); ctx.strokeStyle='#2563eb'; ctx.lineWidth=2; ctx.stroke();
+                    dataPoints.forEach((pt,i)=>{ const x=pad+i*stepX; const y=h-pad - (pt.count/max)*innerH*prog; const grad=ctx.createRadialGradient(x,y,0,x,y,6); grad.addColorStop(0,'#fff'); grad.addColorStop(1,'#2563eb'); ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#111827'; ctx.font='10px system-ui'; ctx.textAlign='center'; ctx.fillText(pt.count.toString(), x, y-12); ctx.save(); ctx.translate(x, h-pad+12); ctx.rotate(-Math.PI/6); ctx.fillStyle='#374151'; ctx.fillText(pt.label,0,0); ctx.restore(); }); };
+                animate();
+            };
+
+            const genderSlices = [
+                { id:'male', label:'Male', value: stats.malePatients, color:'#3b82f6' },
+                { id:'female', label:'Female', value: stats.femalePatients, color:'#ec4899' },
+                { id:'other', label:'Other', value: stats.totalPatients - stats.malePatients - stats.femalePatients, color:'#6366f1' }
+            ].filter(s => s.value > 0);
+            const prioritySlices = [
+                { id:'critical', label:'Critical', value: stats.criticalPrescriptions, color:'#dc2626' },
+                { id:'urgent', label:'Urgent', value: stats.urgentPrescriptions, color:'#f59e0b' },
+                { id:'normal', label:'Normal', value: stats.normalPrescriptions, color:'#10b981' }
+            ].filter(s => s.value > 0);
+
+            const followUpMap = (() => {
+                const arr=[]; for(let i=0;i<7;i++){ const d=new Date(); d.setDate(d.getDate()+i); const key=d.toISOString().slice(0,10); const count=safePrescriptions.filter(p=>p.followUpDate && p.followUpDate.slice(0,10)===key).length; arr.push({ label: d.toLocaleDateString(undefined,{month:'short', day:'numeric'}), count }); } return arr;
+            })();
+            // Redraw charts when stats or hover changes
+            useEffect(() => {
+                drawDonut3D(genderChartRef.current, genderSlices, { centerText: `Patients\n${stats.totalPatients}`, id: 'gender' });
+                drawDonut3D(priorityChartRef.current, prioritySlices, { centerText: `Rx\n${stats.totalPrescriptions}`, id: 'priority' });
+                drawAgeBars(ageChartRef.current, stats.ageGroups || {});
+                drawFollowUpTimeline(followUpChartRef.current, followUpMap);
+            }, [stats.totalPatients, stats.totalPrescriptions, genderSlices.length, prioritySlices.length, hoverInfo, Object.values(stats.ageGroups||{}).join(','), followUpMap.map(p=>p.count).join(',')]);
+
+            const handleCanvasMove = (e, canvas, type) => {
+                if (!canvas || !canvas._slicesMeta) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const meta = canvas._slicesMeta;
+                let found = null;
+                for (const sl of meta) {
+                    const dx = x - sl.cx;
+                    const dy = y - sl.cy;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist >= sl.inner && dist <= sl.radius) {
+                        const ang = Math.atan2(dy, dx);
+                        const normAng = ang < -Math.PI/2 ? ang + Math.PI*2 : ang; // adjust since start at -90°
+                        if (normAng >= sl.start && normAng <= sl.end) { found = sl; break; }
+                    }
+                }
+                if (found) setHoverInfo({ id: found.id, label: found.label, value: found.value, type }); else if (hoverInfo) setHoverInfo(null);
+            };
+
+            const renderLegend = (slices) => (
+                <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                    {slices.map(s => (
+                        <div key={s.id} className="flex items-center gap-1 bg-white/60 px-2 py-1 rounded border">
+                            <span className="inline-block w-3 h-3 rounded-sm" style={{background:s.color}}></span>
+                            {s.label}: {s.value}
+                        </div>
+                    ))}
+                </div>
+            );
+
             return (
                 <div className="space-y-6">
                     {/* Header with timeframe selector */}
@@ -873,6 +1129,52 @@
                         </div>
                     </div>
 
+                    {/* Interactive Charts Row 1 */}
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <div className="card relative">
+                            <h3 className="text-sm font-semibold mb-2 text-gray-700">Patient Gender Distribution</h3>
+                            <canvas
+                                ref={genderChartRef}
+                                onMouseMove={(e)=>handleCanvasMove(e, genderChartRef.current, 'gender')}
+                                onMouseLeave={()=> setHoverInfo(null)}
+                                onClick={(e)=>handleCanvasMove(e, genderChartRef.current, 'gender')}
+                                className="w-full select-none"
+                                style={{cursor:'pointer'}}
+                            />
+                            {renderLegend(genderSlices)}
+                        </div>
+                        <div className="card relative">
+                            <h3 className="text-sm font-semibold mb-2 text-gray-700">Prescription Priority Mix</h3>
+                            <canvas
+                                ref={priorityChartRef}
+                                onMouseMove={(e)=>handleCanvasMove(e, priorityChartRef.current, 'priority')}
+                                onMouseLeave={()=> setHoverInfo(null)}
+                                onClick={(e)=>handleCanvasMove(e, priorityChartRef.current, 'priority')}
+                                className="w-full select-none"
+                                style={{cursor:'pointer'}}
+                            />
+                            {renderLegend(prioritySlices)}
+                        </div>
+                    </div>
+
+                    {hoverInfo && (
+                        <div className="fixed pointer-events-none z-50 text-xs bg-gray-900 text-white px-2 py-1 rounded shadow" style={{left: 'var(--mx,0px)', top: 'var(--my,0px)'}} id="chart-hover-tooltip">
+                            {hoverInfo.label}: {hoverInfo.value}
+                        </div>
+                    )}
+
+                    {/* Charts Row 2 */}
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <div className="card relative">
+                            <h3 className="text-sm font-semibold mb-2 text-gray-700">Age Distribution</h3>
+                            <canvas ref={ageChartRef} className="w-full select-none" />
+                        </div>
+                        <div className="card relative">
+                            <h3 className="text-sm font-semibold mb-2 text-gray-700">Upcoming Follow-Ups (7 days)</h3>
+                            <canvas ref={followUpChartRef} className="w-full select-none" />
+                        </div>
+                    </div>
+
                     {/* Alerts Section */}
                     {showAlerts && alerts.length > 0 && (
                         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
@@ -885,7 +1187,12 @@
                                         'bg-blue-100 text-blue-800'
                                     }`}>
                                         <span>{alert.message}</span>
-                                        <span className="text-sm font-medium cursor-pointer hover:underline">
+                                        <span className="text-sm font-medium cursor-pointer hover:underline" onClick={() => {
+                                            if(!setActiveTab) return;
+                                            if(alert.action === 'View Schedule') setActiveTab('schedule');
+                                            else if(alert.action === 'View Prescriptions' || alert.action === 'Review Urgent Cases') setActiveTab('prescriptions');
+                                            else if(alert.action === 'Review Vitals') setActiveTab('vitals');
+                                        }}>
                                             {alert.action}
                                         </span>
                                     </div>
@@ -4812,6 +5119,12 @@
                                 >
                                     Case Report
                                 </button>
+                                <button
+                                    className={`tab ${activeTab === 'schedule' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('schedule')}
+                                >
+                                    Schedule
+                                </button>
                             </div>
                         </div>
                     </nav>
@@ -4894,6 +5207,60 @@
                                 sickIntimations={sickIntimations}
                                 setSickIntimations={setSickIntimations}
                             />
+                        )}
+
+                        {activeTab === 'schedule' && (
+                            <div className="space-y-6">
+                                <div className="card">
+                                    <h2 className="text-xl font-semibold mb-4">Follow-Up Schedule (Next 14 Days)</h2>
+                                    <p className="text-gray-600 mb-4 text-sm">Automatic list of upcoming follow-up appointments derived from prescriptions.</p>
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full table-auto border-collapse border border-gray-300 text-sm">
+                                            <thead>
+                                                <tr className="bg-gray-100">
+                                                    <th className="border px-3 py-2">Date</th>
+                                                    <th className="border px-3 py-2">Patient</th>
+                                                    <th className="border px-3 py-2">USN</th>
+                                                    <th className="border px-3 py-2">Priority</th>
+                                                    <th className="border px-3 py-2">Diagnosis</th>
+                                                    <th className="border px-3 py-2">Original Rx Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {prescriptions
+                                                    .filter(p => p.followUpDate)
+                                                    .filter(p => {
+                                                        const d = new Date(p.followUpDate);
+                                                        const now = new Date();
+                                                        const limit = new Date(); limit.setDate(limit.getDate()+14);
+                                                        return d >= now && d <= limit;
+                                                    })
+                                                    .sort((a,b)=> new Date(a.followUpDate) - new Date(b.followUpDate))
+                                                    .map((p,i)=> {
+                                                        const patient = patients.find(pt=>pt.usn===p.usn) || {}; return (
+                                                        <tr key={p.id || i} className="hover:bg-blue-50">
+                                                            <td className="border px-3 py-2 font-mono">{new Date(p.followUpDate).toLocaleDateString()}</td>
+                                                            <td className="border px-3 py-2">{patient.name || p.patientName || 'Unknown'}</td>
+                                                            <td className="border px-3 py-2">{p.usn || patient.usn || '-'}</td>
+                                                            <td className="border px-3 py-2">
+                                                                <span className={`px-2 py-1 rounded text-xs font-medium ${ (p.priority||'Normal')==='Critical' ? 'bg-red-100 text-red-700' : (p.priority||'Normal')==='Urgent' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700' }`}>
+                                                                    {p.priority || 'Normal'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="border px-3 py-2 truncate max-w-[160px]" title={p.diagnosis}>{p.diagnosis || '-'}</td>
+                                                            <td className="border px-3 py-2">{p.prescribedAt ? new Date(p.prescribedAt).toLocaleDateString() : '-'}</td>
+                                                        </tr> );
+                                                    })}
+                                                {prescriptions.filter(p=>p.followUpDate && new Date(p.followUpDate) >= new Date()).length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="6" className="text-center py-6 text-gray-500">No upcoming follow-ups in the next 14 days.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         )}
                     </main>
 
