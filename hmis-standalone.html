@@ -2653,20 +2653,24 @@
 
         // CSV Export Component
         const ExportData = ({ patients, vitals, prescriptions }) => {
-            const downloadCSV = (data, filename) => {
-                if (data.length === 0) {
+            // --- Helpers ---
+            const escapeCSV = (val) => {
+                if (val === null || val === undefined) return '';
+                let str = String(val);
+                if (str.includes('"')) str = str.replace(/"/g, '""');
+                if (/[",\n]/.test(str)) str = `"${str}"`;
+                return str;
+            };
+
+            const downloadCSV = (rows, filename, columns, headers) => {
+                if (!rows || rows.length === 0) {
                     alert('No data to export');
                     return;
                 }
-
-                const csvContent = [
-                    Object.keys(data[0]).join(','),
-                    ...data.map(row => Object.values(row).map(val => 
-                        typeof val === 'string' && val.includes(',') ? `"${val}"` : val
-                    ).join(','))
-                ].join('\n');
-
-                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const headerLine = (headers || columns).map(escapeCSV).join(',');
+                const dataLines = rows.map(r => columns.map(col => escapeCSV(r[col])).join(','));
+                const csvContent = [headerLine, ...dataLines].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -2677,12 +2681,13 @@
                 window.URL.revokeObjectURL(url);
             };
 
-            const tryDatabaseExport = async (endpoint, fallbackData, filename) => {
+            // Attempt server export then fallback to shaped local data
+            const tryDatabaseExport = async (endpoint, shapedData, filename, columns, headers) => {
+                let success = false;
                 try {
                     console.log(`Attempting database export for ${endpoint}...`);
                     const response = await fetch(`${BACKEND_BASE}/api/export/${endpoint}`);
                     if (response.ok) {
-                        console.log(`Database export successful for ${endpoint}`);
                         const blob = await response.blob();
                         const url = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -2693,66 +2698,105 @@
                         document.body.removeChild(a);
                         window.URL.revokeObjectURL(url);
                         alert(`${endpoint} exported successfully from database!`);
-                        return true;
+                        success = true;
                     } else {
                         console.warn(`Database export failed for ${endpoint}, status: ${response.status}`);
                     }
-                } catch (error) {
-                    console.warn(`Database export failed for ${endpoint}:`, error);
+                } catch (err) {
+                    console.warn(`Database export failed for ${endpoint}:`, err);
                 }
-                // Fallback to local data
-                console.log(`Using local data for ${endpoint} export`);
-                downloadCSV(fallbackData, filename);
-                alert(`${endpoint} exported from local data (database not available)`);
-                return false;
+                if (!success) {
+                    console.log(`Falling back to local shaped data for ${endpoint}`);
+                    downloadCSV(shapedData, filename, columns, headers);
+                    alert(`${endpoint} exported from local data (database not available)`);
+                }
+                return success;
             };
 
-            const exportPatients = () => {
-                tryDatabaseExport('patients', patients, 'patients.csv');
-            };
+            // --- Shape Data ---
+            const shapePatients = () => patients.map(p => ({
+                usn: p.usn,
+                fullName: p.fullName,
+                age: p.age,
+                gender: p.gender,
+                phone: p.phone || '',
+                email: p.email || '',
+                address: p.address || '',
+                createdAt: p.createdAt || ''
+            }));
+            const patientCols = ['usn','fullName','age','gender','phone','email','address','createdAt'];
+            const patientHeaders = ['USN','Full Name','Age','Gender','Phone','Email','Address','Created At'];
 
-            const exportVitals = () => {
-                tryDatabaseExport('vitals', vitals, 'vitals.csv');
-            };
+            const shapeVitals = () => vitals.map(v => ({
+                id: v.id,
+                usn: v.usn,
+                patientName: v.patientName || '',
+                weight: v.weight ?? '',
+                height: v.height ?? '',
+                bmi: v.bmi ?? '',
+                systolic: v.bloodPressureSystolic ?? '',
+                diastolic: v.bloodPressureDiastolic ?? '',
+                heartRate: v.heartRate ?? '',
+                temperature: v.temperature ?? '',
+                respiratoryRate: v.respiratoryRate ?? '',
+                oxygenSaturation: v.oxygenSaturation ?? '',
+                recordedAt: v.recordedAt || '',
+                recordedBy: v.recordedBy || ''
+            }));
+            const vitalsCols = ['id','usn','patientName','weight','height','bmi','systolic','diastolic','heartRate','temperature','respiratoryRate','oxygenSaturation','recordedAt','recordedBy'];
+            const vitalsHeaders = ['ID','USN','Patient Name','Weight(kg)','Height(cm)','BMI','Systolic','Diastolic','Heart Rate','Temp(°C)','Resp Rate','SpO2','Recorded At','Recorded By'];
 
-            const exportPrescriptions = () => {
-                tryDatabaseExport('prescriptions', prescriptions, 'prescriptions.csv');
-            };
+            const flattenMedications = (medList) => (medList || []).map(m => `${m.name} (${m.dosage || ''}; ${m.frequency || ''}${m.duration ? '; ' + m.duration : ''})${m.instructions ? ' - ' + m.instructions : ''}`).join(' | ');
 
-            const exportAllData = () => {
-                tryDatabaseExport('complete', getAllDataForExport(), 'complete_patient_data.csv');
-            };
+            const shapePrescriptions = () => prescriptions.map(p => ({
+                id: p.id,
+                usn: p.usn,
+                patientName: p.patientName || '',
+                age: p.patientAge || '',
+                gender: p.patientGender || '',
+                diagnosis: p.diagnosis || '',
+                medications: flattenMedications(p.medications),
+                followUpDate: p.followUpDate || '',
+                prescribedAt: p.prescribedAt || '',
+                prescribedAtIST: p.prescribedAtIST || '',
+                prescribedBy: p.prescribedBy || '',
+                priority: p.priority || '',
+                notes: (p.notes || '').replace(/\n/g,' '),
+                status: p.status || ''
+            }));
+            const prescriptionCols = ['id','usn','patientName','age','gender','diagnosis','medications','followUpDate','prescribedAt','prescribedAtIST','prescribedBy','priority','notes','status'];
+            const prescriptionHeaders = ['ID','USN','Patient Name','Age','Gender','Diagnosis','Medications','Follow Up','Prescribed At','Prescribed At (IST)','Prescribed By','Priority','Notes','Status'];
 
-            const getAllDataForExport = () => {
-                return patients.map(patient => {
-                    const patientVitals = vitals.filter(v => v.usn === patient.usn);
-                    const patientPrescriptions = prescriptions.filter(p => p.usn === patient.usn);
-                    
-                    return {
-                        // Patient Info
-                        usn: patient.usn,
-                        fullName: patient.fullName,
-                        age: patient.age,
-                        gender: patient.gender,
-                        address: patient.address || '',
-                        phone: patient.phone || '',
-                        email: patient.email || '',
-                        
-                        // Latest Vitals
-                        latestWeight: patientVitals.length > 0 ? patientVitals[patientVitals.length - 1].weight : '',
-                        latestHeight: patientVitals.length > 0 ? patientVitals[patientVitals.length - 1].height : '',
-                        latestBMI: patientVitals.length > 0 ? patientVitals[patientVitals.length - 1].bmi : '',
-                        latestBloodPressure: patientVitals.length > 0 ? `${patientVitals[patientVitals.length - 1].bloodPressureSystolic}/${patientVitals[patientVitals.length - 1].bloodPressureDiastolic}` : '',
-                        latestHeartRate: patientVitals.length > 0 ? patientVitals[patientVitals.length - 1].heartRate : '',
-                        latestTemperature: patientVitals.length > 0 ? patientVitals[patientVitals.length - 1].temperature : '',
-                        
-                        // Counts
-                        totalVitalsRecords: patientVitals.length,
-                        totalPrescriptions: patientPrescriptions.length,
-                        activePrescriptions: patientPrescriptions.filter(p => p.status !== 'Completed').length
-                    };
-                });
-            };
+            const getAllDataForExport = () => patients.map(p => {
+                const vRecs = vitals.filter(v => v.usn === p.usn);
+                const latest = vRecs.length ? vRecs[vRecs.length - 1] : {};
+                const pres = prescriptions.filter(pr => pr.usn === p.usn);
+                return {
+                    usn: p.usn,
+                    fullName: p.fullName,
+                    age: p.age,
+                    gender: p.gender,
+                    phone: p.phone || '',
+                    email: p.email || '',
+                    latestWeight: latest.weight ?? '',
+                    latestHeight: latest.height ?? '',
+                    latestBMI: latest.bmi ?? '',
+                    latestSystolic: latest.bloodPressureSystolic ?? '',
+                    latestDiastolic: latest.bloodPressureDiastolic ?? '',
+                    latestHeartRate: latest.heartRate ?? '',
+                    latestTemperature: latest.temperature ?? '',
+                    totalVitals: vRecs.length,
+                    totalPrescriptions: pres.length
+                };
+            });
+            const completeCols = ['usn','fullName','age','gender','phone','email','latestWeight','latestHeight','latestBMI','latestSystolic','latestDiastolic','latestHeartRate','latestTemperature','totalVitals','totalPrescriptions'];
+            const completeHeaders = ['USN','Full Name','Age','Gender','Phone','Email','Latest Weight','Latest Height','Latest BMI','Latest Systolic','Latest Diastolic','Latest HR','Latest Temp','Total Vitals','Total Prescriptions'];
+
+            // --- Export Triggers ---
+            const exportPatients = () => tryDatabaseExport('patients', shapePatients(), 'patients.csv', patientCols, patientHeaders);
+            const exportVitals = () => tryDatabaseExport('vitals', shapeVitals(), 'vitals.csv', vitalsCols, vitalsHeaders);
+            const exportPrescriptions = () => tryDatabaseExport('prescriptions', shapePrescriptions(), 'prescriptions.csv', prescriptionCols, prescriptionHeaders);
+            const exportAllData = () => tryDatabaseExport('complete', getAllDataForExport(), 'complete_patient_data.csv', completeCols, completeHeaders);
 
             return (
                 <div className="card">
