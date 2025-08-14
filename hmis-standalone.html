@@ -1332,6 +1332,8 @@
             });
             const [errors, setErrors] = useState({});
             const [selectedPatientDetails, setSelectedPatientDetails] = useState(null);
+            const [patientSearchTerm, setPatientSearchTerm] = useState('');
+            const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
             const validateForm = () => {
                 const newErrors = {};
@@ -1363,6 +1365,68 @@
                 if (systolic < 130 && diastolic < 80) return { category: 'Elevated', color: 'text-yellow-600' };
                 if (systolic < 140 || diastolic < 90) return { category: 'Stage 1 Hypertension', color: 'text-orange-600' };
                 return { category: 'Stage 2 Hypertension', color: 'text-red-600' };
+            };
+
+            // Vital sign suggestion ranges (simplified) based on age bands
+            const getVitalSuggestions = (patient) => {
+                if (!patient) return null;
+                const age = parseInt(patient.age, 10);
+                const genderRaw = (patient.gender || '').toString().toLowerCase();
+                let heartRate = '60-100';
+                let respiratoryRate = '12-20';
+                let temperature = '36.1-37.2';
+                let oxygenSaturation = '95-100';
+                let bpRange = '90-120 / 60-80';
+                let idealHeightRange = { min: 150, max: 170 }; // fallback generic
+
+                if (age < 1) {
+                    heartRate = '100-160';
+                    respiratoryRate = '30-60';
+                    bpRange = '70-100 / 50-65';
+                    idealHeightRange = { min: 50, max: 75 }; // cm
+                } else if (age < 6) {
+                    heartRate = '80-120';
+                    respiratoryRate = '20-30';
+                    bpRange = '80-110 / 50-70';
+                    idealHeightRange = { min: 75, max: 110 };
+                } else if (age < 13) {
+                    heartRate = '70-110';
+                    respiratoryRate = '18-25';
+                    bpRange = '85-115 / 55-75';
+                    idealHeightRange = { min: 110, max: 150 };
+                } else if (age < 18) {
+                    heartRate = '60-100';
+                    respiratoryRate = '12-20';
+                    bpRange = '90-120 / 60-80';
+                    if (genderRaw.startsWith('m')) {
+                        idealHeightRange = { min: 150, max: 180 };
+                    } else if (genderRaw.startsWith('f')) {
+                        idealHeightRange = { min: 145, max: 170 };
+                    } else {
+                        idealHeightRange = { min: 145, max: 178 };
+                    }
+                } else { // adults 18+
+                    if (genderRaw.startsWith('m')) {
+                        idealHeightRange = { min: 160, max: 185 };
+                    } else if (genderRaw.startsWith('f')) {
+                        idealHeightRange = { min: 150, max: 175 };
+                    } else {
+                        idealHeightRange = { min: 155, max: 180 };
+                    }
+                }
+
+                // Ideal weight range from BMI 18.5 - 24.9
+                let idealWeightRange = null;
+                const h = parseFloat(formData.height);
+                if (h && h > 0) {
+                    const hM = h / 100;
+                    idealWeightRange = {
+                        min: (18.5 * hM * hM).toFixed(1),
+                        max: (24.9 * hM * hM).toFixed(1)
+                    };
+                }
+
+                return { heartRate, respiratoryRate, temperature, oxygenSaturation, bpRange, idealWeightRange, idealHeightRange };
             };
 
             const handleSubmit = (e) => {
@@ -1442,12 +1506,49 @@
                 }
             };
 
+            // Handle search typing for merged input
+            const handlePatientSearch = (e) => {
+                const term = e.target.value;
+                setPatientSearchTerm(term);
+                setShowPatientDropdown(true);
+                if (!term) {
+                    // cleared
+                    setFormData(prev => ({ ...prev, usn: '' }));
+                    setSelectedPatientDetails(null);
+                }
+            };
+
+            const selectPatientFromSearch = (patient) => {
+                setFormData(prev => ({ ...prev, usn: patient.usn }));
+                setSelectedPatientDetails(patient);
+                setPatientSearchTerm(`${patient.usn} - ${patient.fullName}`);
+                setShowPatientDropdown(false);
+                if (errors.usn) setErrors(prev => ({ ...prev, usn: '' }));
+            };
+
+            useEffect(() => {
+                const onClick = (e) => {
+                    if (!e.target.closest('.vitals-patient-select')) {
+                        setShowPatientDropdown(false);
+                    }
+                };
+                document.addEventListener('click', onClick);
+                return () => document.removeEventListener('click', onClick);
+            }, []);
+
             const currentBMI = formData.weight && formData.height ? calculateBMI(parseFloat(formData.weight), parseFloat(formData.height)) : null;
             const bmiInfo = currentBMI ? getBMICategory(parseFloat(currentBMI)) : null;
             const bpInfo = formData.bloodPressureSystolic && formData.bloodPressureDiastolic ? 
                 getBloodPressureCategory(parseInt(formData.bloodPressureSystolic), parseInt(formData.bloodPressureDiastolic)) : null;
 
             const patientVitals = selectedPatientDetails ? (vitals || []).filter(v => v.usn === selectedPatientDetails.usn).slice(-5) : [];
+            const filteredPatients = patientSearchTerm
+                ? safePatients.filter(p => {
+                    const term = patientSearchTerm.toLowerCase();
+                    return (p.usn && p.usn.toLowerCase().includes(term)) || (p.fullName && p.fullName.toLowerCase().includes(term));
+                })
+                : safePatients;
+            const vitalSuggestions = selectedPatientDetails ? getVitalSuggestions(selectedPatientDetails) : null;
 
             return (
                 <div className="space-y-6">
@@ -1458,19 +1559,32 @@
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium mb-1">Select Patient *</label>
-                                    <select
-                                        name="usn"
-                                        value={formData.usn}
-                                        onChange={handlePatientSelect}
-                                        className="form-input"
-                                    >
-                                        <option value="">Choose a patient...</option>
-                                        {safePatients.map(patient => (
-                                            <option key={patient.usn} value={patient.usn}>
-                                                {patient.usn} - {patient.fullName} ({patient.age} years, {patient.gender})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <div className="relative vitals-patient-select">
+                                        <input
+                                            type="text"
+                                            value={patientSearchTerm}
+                                            onChange={handlePatientSearch}
+                                            onFocus={() => setShowPatientDropdown(true)}
+                                            placeholder="Search patient by USN or name..."
+                                            className="form-input pr-8"
+                                        />
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 10-14 0 7 7 0 0014 0z" /></svg>
+                                        </div>
+                                        {showPatientDropdown && filteredPatients.length > 0 && (
+                                            <div className="absolute z-20 mt-1 w-full bg-white border border-gray-300 rounded shadow max-h-60 overflow-auto">
+                                                {filteredPatients.slice(0,10).map(p => (
+                                                    <div key={p.usn} onClick={() => selectPatientFromSearch(p)} className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                                                        <div className="font-medium">{p.fullName}</div>
+                                                        <div className="text-xs text-gray-600">{p.usn} • {p.age}y • {p.gender}</div>
+                                                    </div>
+                                                ))}
+                                                {filteredPatients.length > 10 && (
+                                                    <div className="px-3 py-2 text-xs text-gray-500 bg-gray-50">Showing first 10 results...</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                     {errors.usn && <p className="text-red-500 text-sm">{errors.usn}</p>}
                                 </div>
 
@@ -1483,9 +1597,12 @@
                                         onChange={handleChange}
                                         step="0.1"
                                         className="form-input"
-                                        placeholder="70.5"
+                                        placeholder={vitalSuggestions?.idealWeightRange ? `${vitalSuggestions.idealWeightRange.min}-${vitalSuggestions.idealWeightRange.max}` : 'kg'}
                                     />
                                     {errors.weight && <p className="text-red-500 text-sm">{errors.weight}</p>}
+                                    {vitalSuggestions?.idealWeightRange && (
+                                        <p className="text-xs text-gray-500">Ideal: {vitalSuggestions.idealWeightRange.min}-{vitalSuggestions.idealWeightRange.max} kg (BMI 18.5-24.9)</p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1496,9 +1613,12 @@
                                         value={formData.height}
                                         onChange={handleChange}
                                         className="form-input"
-                                        placeholder="175"
+                                        placeholder={vitalSuggestions?.idealHeightRange ? `${vitalSuggestions.idealHeightRange.min}-${vitalSuggestions.idealHeightRange.max}` : 'cm'}
                                     />
                                     {errors.height && <p className="text-red-500 text-sm">{errors.height}</p>}
+                                    {vitalSuggestions?.idealHeightRange && (
+                                        <p className="text-xs text-gray-500">Expected Height Range: {vitalSuggestions.idealHeightRange.min}-{vitalSuggestions.idealHeightRange.max} cm</p>
+                                    )}
                                 </div>
 
                                 {currentBMI && (
@@ -1534,6 +1654,9 @@
                                         placeholder="80"
                                     />
                                     {errors.bloodPressureDiastolic && <p className="text-red-500 text-sm">{errors.bloodPressureDiastolic}</p>}
+                                    {vitalSuggestions?.bpRange && (
+                                        <p className="text-xs text-gray-500">Normal Range: {vitalSuggestions.bpRange} mmHg</p>
+                                    )}
                                 </div>
 
                                 {bpInfo && (
@@ -1556,6 +1679,9 @@
                                         placeholder="72"
                                     />
                                     {errors.heartRate && <p className="text-red-500 text-sm">{errors.heartRate}</p>}
+                                    {vitalSuggestions?.heartRate && (
+                                        <p className="text-xs text-gray-500">Expected: {vitalSuggestions.heartRate} bpm</p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1570,6 +1696,9 @@
                                         placeholder="37.0"
                                     />
                                     {errors.temperature && <p className="text-red-500 text-sm">{errors.temperature}</p>}
+                                    {vitalSuggestions?.temperature && (
+                                        <p className="text-xs text-gray-500">Normal: {vitalSuggestions.temperature} °C</p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1582,6 +1711,9 @@
                                         className="form-input"
                                         placeholder="16"
                                     />
+                                    {vitalSuggestions?.respiratoryRate && (
+                                        <p className="text-xs text-gray-500">Normal RR: {vitalSuggestions.respiratoryRate} breaths/min</p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1596,6 +1728,9 @@
                                         className="form-input"
                                         placeholder="98"
                                     />
+                                    {vitalSuggestions?.oxygenSaturation && (
+                                        <p className="text-xs text-gray-500">Normal SpO₂: {vitalSuggestions.oxygenSaturation}%</p>
+                                    )}
                                 </div>
 
                                 <div className="md:col-span-2">
@@ -1948,20 +2083,7 @@
                                         </div>
                                     )}
                                     
-                                    {/* Traditional dropdown as fallback */}
-                                    <select
-                                        name="usn"
-                                        value={formData.usn}
-                                        onChange={handlePatientSelect}
-                                        className="form-input mt-2"
-                                    >
-                                        <option value="">Or choose from dropdown...</option>
-                                        {safePatients.map(patient => (
-                                            <option key={patient.usn} value={patient.usn}>
-                                                {patient.usn} - {patient.fullName} ({patient.age} years, {patient.gender})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    {/* Dropdown fallback removed per unified search requirement */}
                                     {errors.usn && <p className="text-red-500 text-sm mt-1">{errors.usn}</p>}
                                 </div>
 
@@ -2896,6 +3018,11 @@
             });
             const [errors, setErrors] = useState({});
             const [selectedPatientDetails, setSelectedPatientDetails] = useState(null);
+            // Unified search states
+            const [caseSearchTerm, setCaseSearchTerm] = useState('');
+            const [sickSearchTerm, setSickSearchTerm] = useState('');
+            const [showCasePatientDropdown, setShowCasePatientDropdown] = useState(false);
+            const [showSickPatientDropdown, setShowSickPatientDropdown] = useState(false);
 
             const safePatients = patients || [];
             const safeCaseReports = caseReports || [];
@@ -2936,6 +3063,48 @@
                     }
                 }
             };
+
+            // Filter helpers
+            const filteredCasePatients = caseSearchTerm
+                ? safePatients.filter(p => {
+                    const t = caseSearchTerm.toLowerCase();
+                    return p.usn.toLowerCase().includes(t) || p.fullName.toLowerCase().includes(t);
+                })
+                : safePatients;
+            const filteredSickPatients = sickSearchTerm
+                ? safePatients.filter(p => {
+                    const t = sickSearchTerm.toLowerCase();
+                    return p.usn.toLowerCase().includes(t) || p.fullName.toLowerCase().includes(t);
+                })
+                : safePatients;
+
+            const selectCasePatient = (patient) => {
+                setFormData(prev => ({ ...prev, usn: patient.usn }));
+                setSelectedPatientDetails(patient);
+                setCaseSearchTerm(`${patient.usn} - ${patient.fullName}`);
+                setShowCasePatientDropdown(false);
+            };
+            const selectSickPatient = (patient) => {
+                setSickFormData(prev => ({ ...prev, usn: patient.usn }));
+                setSelectedPatientDetails(patient);
+                setSickSearchTerm(`${patient.usn} - ${patient.fullName}`);
+                // Auto-populate case report id
+                const patientCaseReports = safeCaseReports.filter(cr => cr.usn === patient.usn);
+                if (patientCaseReports.length > 0) {
+                    const latestCaseReport = patientCaseReports.sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))[0];
+                    setSickFormData(prev => ({ ...prev, caseReportId: latestCaseReport.reportNumber }));
+                }
+                setShowSickPatientDropdown(false);
+            };
+
+            useEffect(() => {
+                const onDocClick = (e) => {
+                    if (!e.target.closest('.case-patient-search')) setShowCasePatientDropdown(false);
+                    if (!e.target.closest('.sick-patient-search')) setShowSickPatientDropdown(false);
+                };
+                document.addEventListener('click', onDocClick);
+                return () => document.removeEventListener('click', onDocClick);
+            }, []);
 
             const calculateDays = (fromDate, toDate) => {
                 if (fromDate && toDate) {
@@ -3763,18 +3932,32 @@
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Select Patient *</label>
-                                    <select
-                                        value={formData.usn}
-                                        onChange={(e) => handlePatientSelect(e, 'case')}
-                                        className="form-input"
-                                    >
-                                        <option value="">Choose patient...</option>
-                                        {safePatients.map(patient => (
-                                            <option key={patient.usn} value={patient.usn}>
-                                                {patient.usn} - {patient.fullName} ({patient.age} years, {patient.gender})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <div className="relative case-patient-search">
+                                        <input
+                                            type="text"
+                                            value={caseSearchTerm}
+                                            onChange={(e)=>{ setCaseSearchTerm(e.target.value); setShowCasePatientDropdown(true); if(!e.target.value){ setFormData(prev=>({...prev,usn:''})); setSelectedPatientDetails(null);} }}
+                                            onFocus={()=> setShowCasePatientDropdown(true)}
+                                            placeholder="Search patient by USN or name..."
+                                            className="form-input pr-8"
+                                        />
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 10-14 0 7 7 0 0014 0z" /></svg>
+                                        </div>
+                                        {showCasePatientDropdown && filteredCasePatients.length > 0 && (
+                                            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded shadow max-h-60 overflow-auto">
+                                                {filteredCasePatients.slice(0,10).map(p => (
+                                                    <div key={p.usn} onClick={()=>selectCasePatient(p)} className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                                                        <div className="font-medium">{p.fullName}</div>
+                                                        <div className="text-xs text-gray-600">{p.usn} • {p.age}y • {p.gender}</div>
+                                                    </div>
+                                                ))}
+                                                {filteredCasePatients.length === 0 && (
+                                                    <div className="px-3 py-2 text-xs text-gray-500">No matches</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>
@@ -3957,18 +4140,32 @@
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Select Patient *</label>
-                                    <select
-                                        value={sickFormData.usn}
-                                        onChange={(e) => handlePatientSelect(e, 'sick')}
-                                        className="form-input"
-                                    >
-                                        <option value="">Choose patient...</option>
-                                        {safePatients.map(patient => (
-                                            <option key={patient.usn} value={patient.usn}>
-                                                {patient.usn} - {patient.fullName} ({patient.age} years, {patient.gender})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <div className="relative sick-patient-search">
+                                        <input
+                                            type="text"
+                                            value={sickSearchTerm}
+                                            onChange={(e)=>{ setSickSearchTerm(e.target.value); setShowSickPatientDropdown(true); if(!e.target.value){ setSickFormData(prev=>({...prev,usn:'',caseReportId:''})); setSelectedPatientDetails(null);} }}
+                                            onFocus={()=> setShowSickPatientDropdown(true)}
+                                            placeholder="Search patient by USN or name..."
+                                            className="form-input pr-8"
+                                        />
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 10-14 0 7 7 0 0014 0z" /></svg>
+                                        </div>
+                                        {showSickPatientDropdown && filteredSickPatients.length > 0 && (
+                                            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded shadow max-h-60 overflow-auto">
+                                                {filteredSickPatients.slice(0,10).map(p => (
+                                                    <div key={p.usn} onClick={()=>selectSickPatient(p)} className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                                                        <div className="font-medium">{p.fullName}</div>
+                                                        <div className="text-xs text-gray-600">{p.usn} • {p.age}y • {p.gender}</div>
+                                                    </div>
+                                                ))}
+                                                {filteredSickPatients.length === 0 && (
+                                                    <div className="px-3 py-2 text-xs text-gray-500">No matches</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>
@@ -4273,6 +4470,15 @@
             const [sickIntimations, setSickIntimations] = useState(() => loadFromStorage('sickIntimations', []));
             const [selectedPatient, setSelectedPatient] = useState(null);
             const [activeTab, setActiveTab] = useState('dashboard');
+            // Scroll to top whenever active tab changes for better UX after quick actions
+            useEffect(() => {
+                try {
+                    const target = document.querySelector('header') || document.body;
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } catch (e) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }, [activeTab]);
             const [searchTerm, setSearchTerm] = useState('');
             const [dbConnected, setDbConnected] = useState(false);
             const [syncStatus, setSyncStatus] = useState('checking');
@@ -4366,8 +4572,6 @@
                                 console.warn('Failed to refresh data from server:', error);
                                 setSyncStatus('connected');
                             }
-                        } else {
-                            setSyncStatus('offline');
                         }
                     } catch (error) {
                         console.error('Database connection check failed:', error);
@@ -4375,17 +4579,15 @@
                         setSyncStatus('offline');
                     }
                 };
-                
                 checkDatabaseAndSync();
                 const interval = setInterval(checkDatabaseAndSync, 15000); // Check every 15 seconds
                 return () => clearInterval(interval);
-            }, [dbConnected]); // Add dbConnected as dependency to detect state changes
+            }, [dbConnected, patients, vitals, prescriptions]);
 
             // Save to localStorage whenever data changes and attempt sync
             useEffect(() => {
                 saveToStorage('patients', patients);
                 if (dbConnected && patients.length > 0) {
-                    // Mark for background sync
                     localStorage.setItem('needsSync', 'true');
                 }
             }, [patients, dbConnected]);
@@ -4559,6 +4761,7 @@
                                 <button
                                     className={`tab ${activeTab === 'case-report' ? 'active' : ''}`}
                                     onClick={() => setActiveTab('case-report')}
+                                    id="case-report-tab"
                                 >
                                     Case Report
                                 </button>
