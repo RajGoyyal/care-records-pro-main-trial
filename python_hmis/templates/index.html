@@ -3,7 +3,7 @@
 <nav class="tabs" aria-label="Navigation">
   <a class="tab" href="#patient">Patient Entry</a>
   <a class="tab" href="#vitals">Vitals Entry</a>
-  <a class="tab" href="#rx">Prescription</a>
+  <a class="tab" href="#rx">Prescription / Treatment Regime</a>
   <a class="tab" href="{{ url_for('export_csv') }}">Export CSV</a>
 </nav>
 
@@ -164,7 +164,7 @@
 </section>
 
 <section id="rx">
-  <h2>Prescription</h2>
+  <h2>Prescription / Treatment Regime</h2>
   <form method="get" action="/">
     <label>Quick Search (USN or Phone)</label>
     <div class="row grid-2">
@@ -180,7 +180,7 @@
         <input name="usn" value="{{ match_patient.usn if match_patient }}" required />
       </div>
       <div>
-        <label>Prescription Notes</label>
+  <label>Prescription / Treatment Regime Notes</label>
         <textarea name="notes" rows="4" required></textarea>
       </div>
     </div>

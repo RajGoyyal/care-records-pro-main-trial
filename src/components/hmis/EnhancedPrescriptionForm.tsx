@@ -527,7 +527,7 @@ export default function EnhancedPrescriptionForm({ patients, prescriptions, setP
                     id="notes"
                     value={form.notes}
                     onChange={e => handleChange("notes", e.target.value)}
-                    placeholder="Enter prescription notes, diagnosis, and additional instructions..."
+                    placeholder="Enter prescription notes, Treatment Administered or Diagnosis, and additional instructions..."
                     disabled={isSubmitting}
                     className="min-h-[120px]"
                   />
