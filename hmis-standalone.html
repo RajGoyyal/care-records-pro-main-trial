@@ -2673,6 +2673,8 @@
                                     margin-top: 14px;
                                 }
                                 img { max-width: 100%; height: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                                .app-logo-large { height:160px !important; width:auto !important; object-fit:contain; }
+                                @media print { .app-logo-large { height:90px !important; } }
                             }
                             body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 10px; }
                             .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
@@ -2700,7 +2702,7 @@
                     <body>
                         <div class="header">
                             <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 60px; margin-right: 15px;" />
+                                <img src="${logoUrl}" alt="NHCE Logo" class="app-logo-large" style="margin-right:42px;" />
                                 <div style="text-align: left;">
                                     <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                     <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
@@ -3169,7 +3171,7 @@
                     <body>
                         <div class="header">
                             <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
-                                <img src="${logoUrl}" alt="NHCE Logo" style="height:50px;" />
+                                <img src="${logoUrl}" alt="NHCE Logo" style="height:120px;" />
                                 <div style="text-align:left;">
                                     <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                     <div style="font-size:12px;color:#555">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
@@ -3635,7 +3637,7 @@
                 const clinicHeader = `
                     <div class="header">
                         <div style="display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                            <img src="${logoUrl}" alt="NHCE Logo" style="height:60px;margin-right:15px;" />
+                            <img src="${logoUrl}" alt="NHCE Logo" style="height:130px;margin-right:18px;" />
                             <div style="text-align:left;">
                                 <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                 <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
@@ -3963,7 +3965,7 @@
                     <body>
                         <div class="header">
                             <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 60px; margin-right: 15px;" />
+                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 120px; margin-right: 18px;" />
                                 <div style="text-align: left;">
                                     <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                     <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
@@ -4120,7 +4122,7 @@
                     <body>
                         <div class="header">
                             <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 60px; margin-right: 15px;" />
+                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 120px; margin-right: 18px;" />
                                 <div style="text-align: left;">
                                     <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                     <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
@@ -4955,7 +4957,7 @@
                         <div className="container mx-auto max-w-6xl">
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center">
-                                    <img src="./nhce_25-scaled-1-2048x683.png" alt="NHCE Logo" className="h-16 mr-4" style={{maxWidth: '120px'}} />
+                                    <img src="./nhce_25-scaled-1-2048x683.png" alt="NHCE Logo" className="mr-4" style={{height:'140px', maxWidth: '260px'}} />
                                     <div>
                                         <h1 className="text-3xl md:text-4xl font-bold mb-2">
                                             New Horizon Sanjeevani Clinic
