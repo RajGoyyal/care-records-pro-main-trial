@@ -2709,20 +2709,23 @@
                             </div>
                         </div>
 
-                        <div class="prescription-header">
-                            <div class="patient-info">
-                                <h3 style="margin-top: 0; color: #333;">Patient Information</h3>
-                                <div class="info-row"><span class="label">Name:</span> ${patientName}</div>
-                                <div class="info-row"><span class="label">USN:</span> ${usn}</div>
-                                <div class="info-row"><span class="label">Age:</span> ${patientAge} years</div>
-                                <div class="info-row"><span class="label">Gender:</span> ${patientGender}</div>
-                            </div>
-                            <div class="prescription-info">
-                                <h3 style="margin-top: 0; color: #333;">Prescription / Treatment Regime Details</h3>
-                                <div class="info-row"><span class="label">Date:</span> ${new Date(prescribedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
-                                <div class="info-row"><span class="label">Time:</span> ${new Date(prescribedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
-                                <div class="info-row"><span class="label">Doctor:</span> ${prescribedBy}</div>
-                                <div class="info-row"><span class="label">Rx ID:</span> RX-${prescription.id}</div>
+                        <div class="prescription-header" style="display:flex; flex-direction:column; gap:12px;">
+                            <div class="document-title" style="text-align:center; font-size:20px; font-weight:600; letter-spacing:0.5px; margin:0;">Prescription / Treatment Regime Details</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:32px; justify-content:center;">
+                                <div class="patient-info" style="min-width:240px;">
+                                    <h3 style="margin-top:0; color:#333; text-align:center; font-size:16px; font-weight:500;">Patient Information</h3>
+                                    <div class="info-row"><span class="label">Name:</span> ${patientName}</div>
+                                    <div class="info-row"><span class="label">USN:</span> ${usn}</div>
+                                    <div class="info-row"><span class="label">Age:</span> ${patientAge} years</div>
+                                    <div class="info-row"><span class="label">Gender:</span> ${patientGender}</div>
+                                </div>
+                                <div class="prescription-info" style="min-width:240px;">
+                                    <h3 style="margin-top:0; color:#333; text-align:center; font-size:16px; font-weight:500;">Consultation Details</h3>
+                                    <div class="info-row"><span class="label">Date:</span> ${new Date(prescribedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
+                                    <div class="info-row"><span class="label">Time:</span> ${new Date(prescribedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
+                                    <div class="info-row"><span class="label">Doctor:</span> ${prescribedBy}</div>
+                                    <div class="info-row"><span class="label">Rx ID:</span> RX-${prescription.id}</div>
+                                </div>
                             </div>
                         </div>
 
