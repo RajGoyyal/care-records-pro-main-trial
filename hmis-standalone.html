@@ -2673,8 +2673,8 @@
                                     margin-top: 14px;
                                 }
                                 img { max-width: 100%; height: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-                                .app-logo-large { height:160px !important; width:auto !important; object-fit:contain; }
-                                @media print { .app-logo-large { height:90px !important; } }
+                                /* Unified logo size (match Patient Details print) */
+                                .app-logo-large { height:100px !important; max-height:100px !important; width:auto !important; object-fit:contain; }
                             }
                             body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 10px; }
                             .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
@@ -2693,6 +2693,7 @@
                             .medication-details { margin-top: 5px; color: #555; }
                             .notes { background: #fff3cd; padding: 10px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ffc107; }
                             .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #666; }
+                                .nhei-stamp { margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15); }
                             .signature-section { margin-top: 40px; text-align: right; page-break-inside: avoid; }
                             .signature-line { border-bottom: 1px solid #333; width: 200px; display: inline-block; margin-bottom: 5px; }
                             .btn { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin: 10px 5px; }
@@ -2706,7 +2707,7 @@
                                 <div style="text-align: left;">
                                     <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                     <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
-                                    <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshi D +91 63625 88851</div>
+                                    <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshini D +91 63625 88851</div>
                                 </div>
                             </div>
                         </div>
@@ -2776,6 +2777,7 @@
                                 <p>Printed on: ${currentDate} at ${currentTime}</p>
                                 <p style="margin-top: 10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
                                 <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
+                                <div class="nhei-stamp">Official internal clinical document &mdash; For exclusive use within New Horizon Education Institutions (NHEI). Unauthorized reproduction, distribution, or external circulation is prohibited.</div>
                             </div>
                         </div>
 
@@ -3164,6 +3166,7 @@
                             .section{ margin:14px 0; }
                             .footer{ margin-top:18px; padding-top:10px; border-top:1px solid #ddd; font-size:9px; color:#666; text-align:center; }
                             .footer p { margin: 2px 0; }
+                            .nhei-stamp { margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15); }
                             .btn{ background:#16a34a; color:#fff; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; }
                             .btn:hover{ background:#15803d; }
                         </style>
@@ -3194,6 +3197,7 @@
                             <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
                             <p>Printed on: ${currentDate} at ${currentTime}</p>
                             <p style="margin-top: 6px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                            <div class="nhei-stamp">Official internal clinical document &mdash; For exclusive use within New Horizon Education Institutions (NHEI). Unauthorized reproduction, distribution, or external circulation is prohibited.</div>
                         </div>
                         <div class="no-print" style="text-align:center; margin-top:12px;">
                             <button class="btn" onclick="window.print()">🖨️ Print</button>
@@ -3637,11 +3641,11 @@
                 const clinicHeader = `
                     <div class="header">
                         <div style="display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                            <img src="${logoUrl}" alt="NHCE Logo" style="height:130px;margin-right:18px;" />
+                            <img src="${logoUrl}" alt="NHCE Logo" style="height:90px;margin-right:18px;" />
                             <div style="text-align:left;">
                                 <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                 <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
-                                <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshi D +91 63625 88851</div>
+                                <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshini D +91 63625 88851</div>
                             </div>
                         </div>
                         <h2 style="text-align:center;color:#333;margin:15px 0;">MEDICAL CASE REPORT</h2>
@@ -3678,6 +3682,7 @@
                         <p>Report Number: ${escapeHtml(payload.reportNumber)} | Generated on: ${currentDate} at ${currentTime}</p>
                         <p style="margin-top:10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
                         <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
+                        <div class="nhei-stamp">Official internal clinical document &mdash; For exclusive use within New Horizon Education Institutions (NHEI). Unauthorized reproduction, distribution, or external circulation is prohibited.</div>
                     </div>`;
 
                 const html = `<!DOCTYPE html>
@@ -3702,6 +3707,7 @@
                         .section-title{font-weight:bold;font-size:16px;color:#333;margin-bottom:10px;border-bottom:1px solid #ddd;padding-bottom:5px}
                         .content{background:#f9f9f9;padding:10px;border-radius:5px;min-height:40px}
                         .footer{margin-top:20px;padding-top:15px;border-top:1px solid #ddd;text-align:center;font-size:10px;color:#666}
+                        .nhei-stamp{margin:18px auto 0 auto;padding:10px 20px;border:2px solid #1d4ed8;border-radius:10px;background:linear-gradient(135deg,#eef6ff,#dbeafe);color:#1e3a8a;font-size:13px;font-weight:600;max-width:520px;letter-spacing:0.5px;box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15)}
                         .signature-section{margin-top:40px;text-align:right}
                         .signature-line{border-bottom:1px solid #333;width:200px;display:inline-block;margin-bottom:5px}
                         .btn{background:#007bff;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;margin:10px 5px}
@@ -3955,21 +3961,26 @@
                             .duration-section p { margin: 3px 0; }
                             .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; font-size: 9px; color: #666; page-break-inside: avoid; }
                             .footer p { margin: 2px 0; }
+                            .footer-inner { max-width:720px; margin:0 auto; }
                             .signature-section { margin-top: 25px; text-align: right; page-break-inside: avoid; }
                             .signature-line { border-bottom: 1px solid #333; width: 180px; display: inline-block; margin-bottom: 3px; }
                             .signature-section small { display: block; line-height: 1.1; }
                             .btn { background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; margin: 8px 3px; }
                             .btn:hover { background: #0056b3; }
+                            .nhei-stamp { margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15); }
+                            .nhei-stamp { margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15); }
+                            .nhei-stamp { margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15); }
+                            .nhei-stamp { margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15); }
                         </style>
                     </head>
                     <body>
                         <div class="header">
                             <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 120px; margin-right: 18px;" />
+                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 90px; margin-right: 18px;" />
                                 <div style="text-align: left;">
                                     <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                     <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
-                                    <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshi D +91 63625 88851</div>
+                                    <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshini D +91 63625 88851</div>
                                 </div>
                             </div>
                             <div class="document-title">Medical Certificate - Sick Leave</div>
@@ -4029,11 +4040,16 @@
                         </div>
 
                         <div class="footer">
-                            <p><strong>New Horizon Sanjeevani Clinic</strong></p>
-                            <p>This medical certificate is computer generated and issued after proper medical examination.</p>
-                            <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
-                            <p>Certificate No: ${intimation.intimationNumber} | Issued on: ${currentDate} at ${currentTime}</p>
-                            <p style="margin-top: 10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                            <div class="footer-inner">
+                                <p><strong>New Horizon Sanjeevani Clinic</strong></p>
+                                <p>This medical certificate is computer generated and issued after proper medical examination.</p>
+                                <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
+                                <p>Certificate No: ${intimation.intimationNumber} | Issued on: ${currentDate} at ${currentTime}</p>
+                                <p style="margin-top: 10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                                <div class="nhei-stamp" style="margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15);">
+                                    Official internal clinical document &mdash; For exclusive use within New Horizon Education Institutions (NHEI). Unauthorized reproduction, distribution, or external circulation is prohibited.
+                                </div>
+                            </div>
                         </div>
 
                         <div class="no-print" style="text-align: center; margin-top: 20px;">
@@ -4112,6 +4128,7 @@
                             .duration-section p { margin: 3px 0; }
                             .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; font-size: 9px; color: #666; page-break-inside: avoid; }
                             .footer p { margin: 2px 0; }
+                            .footer-inner { max-width:720px; margin:0 auto; }
                             .signature-section { margin-top: 25px; text-align: right; page-break-inside: avoid; }
                             .signature-line { border-bottom: 1px solid #333; width: 180px; display: inline-block; margin-bottom: 3px; }
                             .signature-section small { display: block; line-height: 1.1; }
@@ -4126,7 +4143,7 @@
                                 <div style="text-align: left;">
                                     <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
                                     <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
-                                    <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshi D +91 63625 88851</div>
+                                    <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshini D +91 63625 88851</div>
                                 </div>
                             </div>
                             <div class="document-title">Medical Certificate - Sick Leave</div>
@@ -4181,11 +4198,16 @@
                         </div>
 
                         <div class="footer">
-                            <p><strong>New Horizon Sanjeevani Clinic</strong></p>
-                            <p>This medical certificate is computer generated and issued after proper medical examination.</p>
-                            <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
-                            <p>Certificate No: ${intimation.intimationNumber} | Issued on: ${currentDate} at ${currentTime}</p>
-                            <p style="margin-top: 10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                            <div class="footer-inner">
+                                <p><strong>New Horizon Sanjeevani Clinic</strong></p>
+                                <p>This medical certificate is computer generated and issued after proper medical examination.</p>
+                                <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
+                                <p>Certificate No: ${intimation.intimationNumber} | Issued on: ${currentDate} at ${currentTime}</p>
+                                <p style="margin-top: 10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                                <div class="nhei-stamp" style="margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15);">
+                                    Official internal clinical document &mdash; For exclusive use within New Horizon Education Institutions (NHEI). Unauthorized reproduction, distribution, or external circulation is prohibited.
+                                </div>
+                            </div>
                         </div>
 
                         <div class="no-print" style="text-align: center; margin-top: 20px;">
@@ -4293,7 +4315,7 @@
                                         className="form-input"
                                     >
                                         <option value="Mr. Manoj VRC Swami NH-1581">Mr. Manoj VRC Swami NH-1581</option>
-                                        <option value="Ms. Amrutha Varshi D NH - 1215">Ms. Amrutha Varshi D NH - 1215</option>
+                                        <option value="Ms. Amrutha Varshini D NH - 1215">Ms. Amrutha Varshini D NH - 1215</option>
                                     </select>
                                 </div>
 
@@ -4485,7 +4507,7 @@
                                         className="form-input"
                                     >
                                         <option value="Mr. Manoj VRC Swami NH-1581">Mr. Manoj VRC Swami NH-1581</option>
-                                        <option value="Ms. Amrutha Varshi D NH - 1215">Ms. Amrutha Varshi D NH - 1215</option>
+                                        <option value="Ms. Amrutha Varshini D NH - 1215">Ms. Amrutha Varshini D NH - 1215</option>
                                     </select>
                                 </div>
                             </div>
