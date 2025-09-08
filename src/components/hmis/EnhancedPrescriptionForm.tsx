@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useDeferredValue, useRef } from "react";
 import { Patient, Prescription, PrescriptionItem, Medication } from "@/types/hmis";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,11 +59,15 @@ export default function EnhancedPrescriptionForm({ patients, prescriptions, setP
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [medicationSearch, setMedicationSearch] = useState("");
+  // Debounce / defer heavy filter inputs to avoid UI blocking on large datasets
+  const deferredPatientQuery = useDeferredValue(searchQuery);
+  const deferredMedicationQuery = useDeferredValue(medicationSearch);
+  const debounceTimer = useRef<number | null>(null);
   
   // Medication items for current prescription
   const [medicationItems, setMedicationItems] = useState<Array<Omit<PrescriptionItem, 'id' | 'prescriptionId'>>>([]);
   const [currentMedication, setCurrentMedication] = useState<Omit<PrescriptionItem, 'id' | 'prescriptionId'>>(initialMedicationItem);
-  const [medicationSearch, setMedicationSearch] = useState("");
 
   // Validation
   const validation = useMemo(() => {
@@ -82,23 +86,38 @@ export default function EnhancedPrescriptionForm({ patients, prescriptions, setP
 
   // Filter medications
   const filteredMedications = useMemo(() => {
-    if (!medicationSearch.trim()) return commonMedications;
-    const query = medicationSearch.toLowerCase();
-    return commonMedications.filter(med => 
+    if (!deferredMedicationQuery.trim()) return commonMedications;
+    const query = deferredMedicationQuery.toLowerCase();
+    return commonMedications.filter(med =>
       med.name.toLowerCase().includes(query) ||
       (med.genericName && med.genericName.toLowerCase().includes(query))
     );
-  }, [medicationSearch]);
+  }, [deferredMedicationQuery]);
 
   // Filter patients
+  const MAX_PATIENT_RESULTS = 100;
   const filteredPatients = useMemo(() => {
-    if (!searchQuery.trim()) return patients;
-    const query = searchQuery.toLowerCase();
-    return patients.filter(patient => 
-      patient.fullName.toLowerCase().includes(query) ||
-      patient.usn.toLowerCase().includes(query)
-    );
-  }, [patients, searchQuery]);
+    if (!deferredPatientQuery.trim()) return patients.slice(0, MAX_PATIENT_RESULTS);
+    const query = deferredPatientQuery.toLowerCase();
+    const results = [] as Patient[];
+    for (let i = 0; i < patients.length; i++) {
+      const p = patients[i];
+      // Pre-guard to reduce string ops
+      const fn = p.fullName.toLowerCase();
+      if (fn.includes(query) || p.usn.toLowerCase().includes(query)) {
+        results.push(p);
+        if (results.length >= MAX_PATIENT_RESULTS) break;
+      }
+    }
+    return results;
+  }, [patients, deferredPatientQuery]);
+
+  // Debounced setters (optional future expansion)
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) window.clearTimeout(debounceTimer.current);
+    };
+  }, []);
 
   // Patient's prescription history
   const patientPrescriptions = useMemo(() => {
@@ -302,13 +321,19 @@ export default function EnhancedPrescriptionForm({ patients, prescriptions, setP
                 <Input
                   placeholder="Search patients by name or USN..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSearchQuery(val);
+                  }}
                 />
+                {searchQuery && filteredPatients.length === MAX_PATIENT_RESULTS && (
+                  <div className="text-xs text-muted-foreground">Showing first {MAX_PATIENT_RESULTS} matches… refine search.</div>
+                )}
               </div>
 
               {searchQuery && (
                 <div className="max-h-48 overflow-y-auto border rounded-md">
-                  {filteredPatients.map(patient => (
+                    {filteredPatients.map(patient => (
                     <div
                       key={patient.usn}
                       className={`p-3 cursor-pointer hover:bg-accent border-b last:border-b-0 ${

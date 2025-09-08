@@ -2107,7 +2107,6 @@
                     usn: '',
                     medications: [{ 
                         name: '', 
-                        customName: '',
                         dosage: '', 
                         frequency: '', 
                         duration: '', 
@@ -2144,16 +2143,7 @@
                     return () => document.removeEventListener('click', handleClickOutside);
                 }, []);
 
-            const commonMedications = [
-                'Paracetamol 500mg', 'Ibuprofen 400mg', 'Amoxicillin 500mg', 'Azithromycin 250mg',
-                'Omeprazole 20mg', 'Metformin 500mg', 'Amlodipine 5mg', 'Atorvastatin 20mg',
-                'Levothyroxine 50mcg', 'Aspirin 75mg', 'Ciprofloxacin 500mg', 'Prednisolone 5mg',
-                'Salbutamol Inhaler', 'Insulin Glargine', 'Vitamin D3 1000IU', 'Iron Tablet',
-                'Calcium Carbonate', 'Multivitamin', 'Cough Syrup', 'Antacid Tablet'
-            ];
-
-            const frequencies = ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'As needed', 'Before meals', 'After meals'];
-            const durations = ['1 day', '2 days', '3 days', '5 days', '7 days', '10 days', '14 days', '1 month', '3 months', 'Ongoing'];
+            // Predefined medication/frequency/duration lists removed; all entries now free text per user request.
 
             const validateForm = () => {
                 const newErrors = {};
@@ -2161,8 +2151,7 @@
                 if (!formData.diagnosis.trim()) newErrors.diagnosis = 'Diagnosis is required';
                 
                 const hasValidMedication = formData.medications.some(med => {
-                    const medicationName = med.name === 'custom' ? med.customName : med.name;
-                    return medicationName && medicationName.trim() && med.dosage.trim() && med.frequency.trim();
+                    return med.name && med.name.trim() && med.dosage && med.dosage.trim();
                 });
                 if (!hasValidMedication) {
                     newErrors.medications = 'At least one complete medication is required';
@@ -2193,13 +2182,7 @@
                     patientAge: selectedPatientDetails?.age || '',
                     patientGender: selectedPatientDetails?.gender || '',
                     diagnosis: formData.diagnosis,
-                    medications: formData.medications.filter(med => {
-                        const medicationName = med.name === 'custom' ? med.customName : med.name;
-                        return medicationName && medicationName.trim() && med.dosage.trim() && med.frequency.trim();
-                    }).map(med => ({
-                        ...med,
-                        name: med.name === 'custom' ? med.customName : med.name
-                    })),
+                    medications: formData.medications.filter(med => med.name && med.name.trim() && med.dosage && med.dosage.trim()),
                     notes: formData.notes,
                     followUpDate: formData.followUpDate,
                     prescribedAt: nowIso,
@@ -2247,7 +2230,7 @@
                 // Reset form
                 setFormData({
                     usn: '',
-                    medications: [{ name: '', customName: '', dosage: '', frequency: '', duration: '', instructions: '' }],
+                    medications: [{ name: '', dosage: '', frequency: '', duration: '', instructions: '' }],
                     diagnosis: '',
                     notes: '',
                     followUpDate: '',
@@ -2317,28 +2300,15 @@
 
             const handleMedicationChange = (index, field, value) => {
                 const newMedications = [...formData.medications];
-                
-                if (field === 'name' && value === 'custom') {
-                    // Set to custom mode but keep the name as 'custom' to show the textbox
-                    newMedications[index][field] = value;
-                    newMedications[index]['customName'] = '';
-                } else if (field === 'customName') {
-                    // Update the custom name field
-                    newMedications[index]['customName'] = value;
-                } else {
-                    newMedications[index][field] = value;
-                }
-                
+                newMedications[index][field] = value;
                 setFormData(prev => ({ ...prev, medications: newMedications }));
-                if (errors.medications) {
-                    setErrors(prev => ({ ...prev, medications: '' }));
-                }
+                if (errors.medications) setErrors(prev => ({ ...prev, medications: '' }));
             };
 
             const addMedication = () => {
                 setFormData(prev => ({
                     ...prev,
-                    medications: [...prev.medications, { name: '', customName: '', dosage: '', frequency: '', duration: '', instructions: '' }]
+                    medications: [...prev.medications, { name: '', dosage: '', frequency: '', duration: '', instructions: '' }]
                 }));
             };
 
@@ -2398,14 +2368,14 @@
                                 </div>
 
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium mb-1">Diagnosis *</label>
+                                    <label className="block text-sm font-medium mb-1">Treatment Administered / Diagnosis *</label>
                                     <textarea
                                         name="diagnosis"
                                         value={formData.diagnosis}
                                         onChange={handleChange}
                                         rows="2"
                                         className="form-input"
-                                        placeholder="Primary diagnosis or chief complaint..."
+                                        placeholder="Treatment given or primary diagnosis (chief complaint)..."
                                     />
                                     {errors.diagnosis && <p className="text-red-500 text-sm">{errors.diagnosis}</p>}
                                 </div>
@@ -2442,27 +2412,13 @@
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                             <div>
                                                 <label className="block text-sm font-medium mb-1">Medication *</label>
-                                                <select
+                                                <input
+                                                    type="text"
                                                     value={medication.name}
                                                     onChange={(e) => handleMedicationChange(index, 'name', e.target.value)}
                                                     className="form-input"
-                                                >
-                                                    <option value="">Select medication...</option>
-                                                    {commonMedications.map(med => (
-                                                        <option key={med} value={med}>{med}</option>
-                                                    ))}
-                                                    <option value="custom">Custom (type below)</option>
-                                                </select>
-                                                {medication.name === 'custom' && (
-                                                    <input
-                                                        type="text"
-                                                        value={medication.customName || ''}
-                                                        placeholder="Enter custom medication..."
-                                                        onChange={(e) => handleMedicationChange(index, 'customName', e.target.value)}
-                                                        className="form-input mt-1"
-                                                        autoFocus
-                                                    />
-                                                )}
+                                                    placeholder="Enter medication name (e.g., Paracetamol 500mg)"
+                                                />
                                             </div>
 
                                             <div>
@@ -2477,31 +2433,25 @@
                                             </div>
 
                                             <div>
-                                                <label className="block text-sm font-medium mb-1">Frequency *</label>
-                                                <select
+                                                <label className="block text-sm font-medium mb-1">Frequency</label>
+                                                <input
+                                                    type="text"
                                                     value={medication.frequency}
                                                     onChange={(e) => handleMedicationChange(index, 'frequency', e.target.value)}
                                                     className="form-input"
-                                                >
-                                                    <option value="">Select frequency...</option>
-                                                    {frequencies.map(freq => (
-                                                        <option key={freq} value={freq}>{freq}</option>
-                                                    ))}
-                                                </select>
+                                                    placeholder="e.g., Twice daily, Once at night"
+                                                />
                                             </div>
 
                                             <div>
                                                 <label className="block text-sm font-medium mb-1">Duration</label>
-                                                <select
+                                                <input
+                                                    type="text"
                                                     value={medication.duration}
                                                     onChange={(e) => handleMedicationChange(index, 'duration', e.target.value)}
                                                     className="form-input"
-                                                >
-                                                    <option value="">Select duration...</option>
-                                                    {durations.map(dur => (
-                                                        <option key={dur} value={dur}>{dur}</option>
-                                                    ))}
-                                                </select>
+                                                    placeholder="e.g., 5 days, 2 weeks"
+                                                />
                                             </div>
 
                                             <div className="md:col-span-2">
@@ -2768,7 +2718,7 @@
                                 <div class="info-row"><span class="label">Gender:</span> ${patientGender}</div>
                             </div>
                             <div class="prescription-info">
-                                <h3 style="margin-top: 0; color: #333;">Prescription Details</h3>
+                                <h3 style="margin-top: 0; color: #333;">Prescription / Treatment Regime Details</h3>
                                 <div class="info-row"><span class="label">Date:</span> ${new Date(prescribedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
                                 <div class="info-row"><span class="label">Time:</span> ${new Date(prescribedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
                                 <div class="info-row"><span class="label">Doctor:</span> ${prescribedBy}</div>
@@ -2777,7 +2727,7 @@
                         </div>
 
                         <div class="diagnosis">
-                            <strong>Diagnosis:</strong> ${diagnosis}
+                            <strong>Treatment / Diagnosis:</strong> ${diagnosis}
                         </div>
 
                         <div class="medications">
@@ -2869,11 +2819,11 @@
             return (
                 <div className="card">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-semibold">Prescription Management</h2>
+                        <h2 className="text-xl font-semibold">Prescription / Treatment Regime Management</h2>
                         <div className="flex gap-4">
                             <input
                                 type="text"
-                                placeholder="Search by patient name, USN, phone, diagnosis, or Rx ID..."
+                                placeholder="Search by patient name, USN, phone, treatment/diagnosis, or Rx ID..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="form-input w-64"
@@ -2885,14 +2835,14 @@
                         <div className="mb-4 text-sm text-gray-600">
                             <span className="font-medium">Searching for:</span> "{searchTerm}" 
                             <span className="ml-2 text-gray-500">
-                                (searches patient name, USN, phone number, diagnosis, and prescription ID)
+                                (searches patient name, USN, phone number, treatment/diagnosis, and prescription ID)
                             </span>
                         </div>
                     )}
 
                     {filteredPrescriptions.length === 0 ? (
                         <p className="text-gray-500 text-center py-8">
-                            {searchTerm ? 'No prescriptions found matching your criteria.' : 'No prescriptions created yet.'}
+                            {searchTerm ? 'No prescriptions or treatment regimes found.' : 'No prescriptions / treatment regimes created yet.'}
                         </p>
                     ) : (
                         <div className="overflow-x-auto">
@@ -2902,7 +2852,7 @@
                                         <th>Date</th>
                                         <th>Patient</th>
                                         <th>USN</th>
-                                        <th>Diagnosis</th>
+                                        <th>Treatment / Diagnosis</th>
                                         <th>Medications</th>
                                         <th>Actions</th>
                                     </tr>
@@ -2947,7 +2897,7 @@
             console.error('PrescriptionManagement Error:', error);
             return (
                 <div className="card p-6 text-center">
-                    <h2 className="text-xl font-semibold mb-4 text-red-600">Prescription Management Error</h2>
+                    <h2 className="text-xl font-semibold mb-4 text-red-600">Prescription / Treatment Regime Management Error</h2>
                     <p className="text-gray-600 mb-4">There was an error loading the prescription management page.</p>
                         <p className="text-sm text-gray-500">Error: {error.message}</p>
                         <button 
@@ -3075,7 +3025,7 @@
                 status: p.status || ''
             }));
             const prescriptionCols = ['id','usn','patientName','age','gender','diagnosis','medications','followUpDate','prescribedAt','prescribedAtIST','prescribedBy','priority','notes','status'];
-            const prescriptionHeaders = ['ID','USN','Patient Name','Age','Gender','Diagnosis','Medications','Follow Up','Prescribed At','Prescribed At (IST)','Prescribed By','Priority','Notes','Status'];
+            const prescriptionHeaders = ['ID','USN','Patient Name','Age','Gender','Treatment / Diagnosis','Medications','Follow Up','Prescribed At','Prescribed At (IST)','Prescribed By','Priority','Notes','Status'];
 
             const getAllDataForExport = () => patients.map(p => {
                 const vRecs = vitals.filter(v => v.usn === p.usn);
@@ -3487,7 +3437,7 @@
             // Handle Case Report Submission
             const handleCaseReportSubmit = async () => {
                 if (!formData.usn || !formData.diagnosis) {
-                    alert('Please select a patient and provide a diagnosis');
+                    alert('Please select a patient and provide treatment administered / diagnosis');
                     return;
                 }
 
@@ -3778,7 +3728,7 @@
                     ${section('Family History', payload.familyHistory)}
                     ${section('Physical Examination', payload.physicalExamination)}
                     ${section('Investigations', payload.investigations)}
-                    ${section('Diagnosis', payload.diagnosis)}
+                    ${section('Treatment / Diagnosis', payload.diagnosis)}
                     ${section('Treatment', payload.treatment)}
                     ${section('Recommendations', payload.recommendations)}
                     <div class="signature-and-footer">
@@ -4423,7 +4373,7 @@
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Diagnosis</label>
+                                    <label className="block text-sm font-medium mb-1">Treatment Administered / Diagnosis</label>
                                     <textarea
                                         value={formData.diagnosis}
                                         onChange={(e) => setFormData(prev => ({ ...prev, diagnosis: e.target.value }))}
@@ -5222,7 +5172,7 @@
                                                     <th className="border px-3 py-2">Patient</th>
                                                     <th className="border px-3 py-2">USN</th>
                                                     <th className="border px-3 py-2">Priority</th>
-                                                    <th className="border px-3 py-2">Diagnosis</th>
+                                                    <th className="border px-3 py-2">Treatment / Diagnosis</th>
                                                     <th className="border px-3 py-2">Original Rx Date</th>
                                                 </tr>
                                             </thead>
@@ -5280,7 +5230,7 @@
                                     <ul className="text-gray-300 text-sm space-y-1">
                                         <li>• Patient Management</li>
                                         <li>• Vitals Monitoring</li>
-                                        <li>• Prescription Management</li>
+                                        <li>• Prescription / Treatment Regime Management</li>
                                         <li>• Data Export & Analytics</li>
                                     </ul>
                                 </div>
