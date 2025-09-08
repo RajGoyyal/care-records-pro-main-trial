@@ -197,7 +197,7 @@
         // Throttled health check (reduces rapid repeated calls)
         let lastHealthCheckTime = 0;
         let lastHealthCheckResult = false;
-        const HEALTH_CHECK_MIN_INTERVAL = 15000; // 15 seconds
+    const HEALTH_CHECK_MIN_INTERVAL = 5000; // 5 seconds
         const checkServerHealth = async (force = false) => {
             const now = Date.now();
             if (!force && (now - lastHealthCheckTime) < HEALTH_CHECK_MIN_INTERVAL) {

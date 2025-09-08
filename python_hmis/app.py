@@ -4,6 +4,7 @@ import io
 import os
 import sys
 import sqlite3
+import time
 from datetime import datetime, date
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -85,16 +86,48 @@ def serve_root_logo():
 
 # --- Database helpers ---
 
+from flask import g
+
+DB_OPTIMIZED = False  # one-time index / pragma guard
+
 def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    """Return (and cache in request context) a tuned SQLite connection."""
+    if hasattr(g, 'db_conn'):
+        return g.db_conn  # type: ignore[attr-defined]
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
+    # Pragmas for better concurrency & speed
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA foreign_keys=ON;")
+    conn.execute("PRAGMA busy_timeout=5000;")
+    g.db_conn = conn  # type: ignore[attr-defined]
+    global DB_OPTIMIZED
+    if not DB_OPTIMIZED:
+        _ensure_indexes(conn)
+        DB_OPTIMIZED = True
     return conn
+
+def _ensure_indexes(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+    # Composite indexes used by frequent ORDER / WHERE patterns
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vitals_usn_recorded_at ON vitals(usn, recorded_at DESC);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_prescriptions_usn_prescribed_at ON prescriptions(usn, prescribed_at DESC);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_case_reports_usn ON case_reports(usn);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sick_intimations_usn ON sick_intimations(usn);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_patients_full_name ON patients(full_name);")
+    conn.commit()
 
 
 def init_db() -> None:
-    conn = get_db()
-    cur = conn.cursor()
+    # Use a fresh connection (not per-request) for schema to avoid recursion
+    raw = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    raw.row_factory = sqlite3.Row
+    raw.execute("PRAGMA journal_mode=WAL;")
+    raw.execute("PRAGMA synchronous=NORMAL;")
+    raw.execute("PRAGMA foreign_keys=ON;")
+    raw.execute("PRAGMA busy_timeout=5000;")
+    cur = raw.cursor()
     # Create tables if not existing (idempotent)
     cur.executescript(
         """
@@ -353,8 +386,12 @@ def init_db() -> None:
             ],
         )
 
-    conn.commit()
-    conn.close()
+    raw.commit()
+    # Create indexes after schema
+    _ensure_indexes(raw)
+    raw.close()
+    global DB_OPTIMIZED
+    DB_OPTIMIZED = True
 
 
 @app.before_request
