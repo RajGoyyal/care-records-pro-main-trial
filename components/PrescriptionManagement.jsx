@@ -261,4 +261,7 @@ window.HMISComponents.PrescriptionManagement = ({ patients, prescriptions, setPr
     );
 };
 
+// Export to window object for global access
+window.PrescriptionManagement = PrescriptionManagement;
+
 console.log('PrescriptionManagement component loaded successfully');

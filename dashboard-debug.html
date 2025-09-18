@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Debug Test</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto">
+        <h1 class="text-2xl font-bold mb-4">Dashboard Debug Test</h1>
+        
+        <div class="bg-white p-4 rounded shadow mb-4">
+            <h2 class="text-lg font-semibold mb-2">Status Check</h2>
+            <div id="status">Checking...</div>
+        </div>
+        
+        <div class="bg-white p-4 rounded shadow mb-4">
+            <h2 class="text-lg font-semibold mb-2">Console Output</h2>
+            <div id="console" class="bg-gray-100 p-3 rounded font-mono text-sm max-h-48 overflow-y-auto"></div>
+        </div>
+        
+        <div class="bg-white p-4 rounded shadow">
+            <h2 class="text-lg font-semibold mb-2">Component Test</h2>
+            <div id="test-area">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Load Utilities -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Debug Console -->
+    <script>
+        const consoleDiv = document.getElementById('console');
+        const statusDiv = document.getElementById('status');
+        
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function logToDiv(type, ...args) {
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            consoleDiv.innerHTML += `<div class="${type === 'error' ? 'text-red-600' : 'text-gray-800'}">[${type.toUpperCase()}] ${message}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            logToDiv('log', ...args);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            logToDiv('error', ...args);
+        };
+        
+        // Track all script errors
+        window.addEventListener('error', (e) => {
+            console.error(`Script Error: ${e.message} in ${e.filename} at line ${e.lineno}`);
+        });
+        
+        console.log('Debug system ready');
+    </script>
+    
+    <!-- Load Dashboard Component -->
+    <script type="text/babel" src="./components/Dashboard.jsx"></script>
+    
+    <!-- Test Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, starting tests...');
+            
+            function checkStatus() {
+                const checks = [
+                    ['React', !!window.React],
+                    ['ReactDOM', !!window.ReactDOM], 
+                    ['Babel', !!window.Babel],
+                    ['Dashboard', !!window.Dashboard]
+                ];
+                
+                const statusHTML = checks.map(([name, status]) => 
+                    `<div>${name}: ${status ? '✅' : '❌'}</div>`
+                ).join('');
+                
+                statusDiv.innerHTML = statusHTML;
+                
+                if (window.Dashboard) {
+                    console.log('✅ Dashboard component found!');
+                    console.log('Dashboard type:', typeof window.Dashboard);
+                    
+                    // Try to render
+                    try {
+                        const { createElement } = React;
+                        const { render } = ReactDOM;
+                        
+                        const mockProps = {
+                            patients: [],
+                            vitals: [], 
+                            prescriptions: [],
+                            caseReports: [],
+                            sickIntimations: []
+                        };
+                        
+                        render(
+                            createElement(window.Dashboard, mockProps),
+                            document.getElementById('test-area')
+                        );
+                        
+                        console.log('✅ Dashboard rendered successfully!');
+                        
+                    } catch (error) {
+                        console.error('❌ Render error:', error.message);
+                        console.error('Stack:', error.stack);
+                    }
+                } else {
+                    console.error('❌ Dashboard component not found');
+                }
+            }
+            
+            // Check periodically
+            setTimeout(checkStatus, 1000);
+            setTimeout(checkStatus, 3000);
+            setTimeout(checkStatus, 5000);
+        });
+    </script>
+</body>
+</html>

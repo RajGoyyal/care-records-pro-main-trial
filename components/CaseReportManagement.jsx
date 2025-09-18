@@ -465,4 +465,7 @@ window.HMISComponents.CaseReportManagement = ({ patients, caseReports, setCaseRe
     );
 };
 
+// Export to window object for global access
+window.CaseReportManagement = CaseReportManagement;
+
 console.log('CaseReportManagement component loaded successfully');

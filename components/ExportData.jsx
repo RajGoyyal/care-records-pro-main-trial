@@ -218,4 +218,7 @@ window.HMISComponents.ExportData = ({ patients, vitals, prescriptions }) => {
     );
 };
 
+// Export to window object for global access
+window.ExportData = ExportData;
+
 console.log('ExportData component loaded successfully');

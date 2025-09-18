@@ -1,0 +1,5 @@
+/* Dashboard Page Specific Styles */
+.dashboard-page h1,
+.dashboard-page h2 { font-weight:700; }
+
+.dashboard-stats-grid { display:grid; gap:1rem; }

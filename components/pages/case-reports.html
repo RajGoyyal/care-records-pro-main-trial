@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" class="case-reports-page">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Case Reports - HMIS</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/main.css" />
+  <link rel="stylesheet" href="../../css/case-reports-page.css" />
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <nav class="bg-blue-600 text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center space-x-4">
+          <img src="../../public/nhce_logo.png" alt="NHCE Logo" class="h-10 w-auto" />
+          <div>
+            <h1 class="text-xl font-bold">NHCE Hospital Management</h1>
+            <p class="text-blue-200 text-sm">Case Reports</p>
+          </div>
+        </div>
+        <div class="flex space-x-1">
+          <a href="dashboard.html" class="hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">Dashboard</a>
+          <a href="patients.html" class="hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">Patients</a>
+          <a href="vitals.html" class="hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">Vitals</a>
+          <a href="prescriptions.html" class="hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">Prescriptions</a>
+          <a href="prescription-management.html" class="hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">Management</a>
+          <a href="patient-list.html" class="hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">Patient List</a>
+          <a href="export-data.html" class="hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">Export</a>
+          <a href="case-reports.html" class="bg-blue-700 px-4 py-2 rounded-lg font-medium">Reports</a>
+        </div>
+        <div class="flex items-center space-x-2">
+          <div id="server-status" class="flex items-center space-x-2">
+            <div class="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+            <span class="text-sm">Connecting...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div id="case-reports-content" class="w-full">
+      <div class="flex justify-center items-center h-64">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p class="text-gray-600">Loading Case Reports...</p>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="bg-gray-800 text-white py-8 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+          <h3 class="font-semibold">New Horizon Sanjeevani Clinic</h3>
+          <p class="text-gray-400 text-sm">Quality Healthcare for NHCE Community</p>
+        </div>
+        <div class="text-sm text-gray-400">
+          <p>© 2024 Hospital Management Information System</p>
+          <p>Developed by LeadOnyx Apex LLP</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+  <script src="../utilities.js"></script>
+  <script type="text/babel" src="../CaseReportManagement.jsx"></script>
+  <script>
+    async function checkServerHealth() { const statusElement = document.getElementById('server-status'); try { const response = await fetch('/api/health'); if (response.ok) { statusElement.innerHTML = `<div class='w-3 h-3 bg-green-400 rounded-full'></div><span class='text-sm'>Server Online</span>`; } else { throw new Error('Server not responding'); } } catch (error) { statusElement.innerHTML = `<div class='w-3 h-3 bg-red-400 rounded-full'></div><span class='text-sm'>Server Offline</span>`; console.warn('Server health check failed:', error); } }
+    function initializeCaseReports() { try { console.log('🚀 Initializing Case Reports (moved page)...'); checkServerHealth(); setTimeout(() => { if (window.CaseReportManagement) { console.log('✅ CaseReportManagement component found, rendering...'); const { createElement } = React; const { render } = ReactDOM; render(createElement(window.CaseReportManagement), document.getElementById('case-reports-content')); console.log('✅ CaseReportManagement rendered successfully'); } else { console.error('❌ CaseReportManagement component not found'); document.getElementById('case-reports-content').innerHTML = `<div class='text-center py-12'><div class='text-red-600 text-xl mb-4'>⚠️ Component Loading Error</div><p class='text-gray-600'>Case Reports component could not be loaded.</p><button onclick='location.reload()' class='mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700'>Reload Page</button></div>`; } }, 1500); } catch (error) { console.error('❌ Error initializing case reports:', error); } }
+    document.addEventListener('DOMContentLoaded', initializeCaseReports);
+  </script>
+</body>
+</html>

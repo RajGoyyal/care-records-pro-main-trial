@@ -1,0 +1,4 @@
+/* Prescriptions Page Specific Styles */
+.prescriptions-page .priority-critical { background:#fee2e2; color:#991b1b; }
+.prescriptions-page .priority-urgent { background:#fef3c7; color:#92400e; }
+.prescriptions-page .priority-normal { background:#ecfdf5; color:#065f46; }

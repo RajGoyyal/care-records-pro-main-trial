@@ -22,16 +22,20 @@ function initializeApp() {
         // Check server health
         checkServerHealth();
         
-        // Initialize components
-        initializeComponents();
-        
         // Set up event listeners
         setupEventListeners();
         
-        // Show initial tab
-        showTab('dashboard');
+        // Add delay to ensure Babel has transpiled all JSX components
+        setTimeout(() => {
+            // Initialize components after a short delay
+            initializeComponents();
+            
+            // Show initial tab
+            showTab('dashboard');
+            
+            console.log('✅ HMIS Application initialized successfully');
+        }, 1000); // 1 second delay to ensure all components are loaded
         
-        console.log('✅ HMIS Application initialized successfully');
     } catch (error) {
         console.error('❌ Error initializing application:', error);
         showAlert('Failed to initialize application. Please refresh the page.', 'error');
@@ -44,76 +48,102 @@ function initializeComponents() {
         const { createElement } = React;
         const { render } = ReactDOM;
         
+        console.log('🔄 Initializing React components...');
+        
         // Initialize Dashboard
         if (window.Dashboard) {
+            console.log('✅ Loading Dashboard component');
             AppState.components.dashboard = window.Dashboard;
             render(
                 createElement(window.Dashboard),
                 document.getElementById('dashboard-content')
             );
+        } else {
+            console.warn('⚠️ Dashboard component not found');
         }
         
         // Initialize Patient Form
         if (window.PatientForm) {
+            console.log('✅ Loading PatientForm component');
             AppState.components.patientForm = window.PatientForm;
             render(
                 createElement(window.PatientForm),
                 document.getElementById('patients-content')
             );
+        } else {
+            console.warn('⚠️ PatientForm component not found');
         }
         
         // Initialize Vitals Form
         if (window.VitalsForm) {
+            console.log('✅ Loading VitalsForm component');
             AppState.components.vitalsForm = window.VitalsForm;
             render(
                 createElement(window.VitalsForm),
                 document.getElementById('vitals-content')
             );
+        } else {
+            console.warn('⚠️ VitalsForm component not found');
         }
         
         // Initialize Prescription Form
         if (window.PrescriptionForm) {
+            console.log('✅ Loading PrescriptionForm component');
             AppState.components.prescriptionForm = window.PrescriptionForm;
             render(
                 createElement(window.PrescriptionForm),
                 document.getElementById('prescriptions-content')
             );
+        } else {
+            console.warn('⚠️ PrescriptionForm component not found');
         }
         
         // Initialize Prescription Management
         if (window.PrescriptionManagement) {
+            console.log('✅ Loading PrescriptionManagement component');
             AppState.components.prescriptionManagement = window.PrescriptionManagement;
             render(
                 createElement(window.PrescriptionManagement),
                 document.getElementById('prescription-management-content')
             );
+        } else {
+            console.warn('⚠️ PrescriptionManagement component not found');
         }
         
         // Initialize Patient List
         if (window.PatientList) {
+            console.log('✅ Loading PatientList component');
             AppState.components.patientList = window.PatientList;
             render(
                 createElement(window.PatientList),
                 document.getElementById('patient-list-content')
             );
+        } else {
+            console.warn('⚠️ PatientList component not found');
         }
         
         // Initialize Export Data
         if (window.ExportData) {
+            console.log('✅ Loading ExportData component');
             AppState.components.exportData = window.ExportData;
             render(
                 createElement(window.ExportData),
                 document.getElementById('export-content')
             );
+        } else {
+            console.warn('⚠️ ExportData component not found');
         }
         
         // Initialize Case Report Management
         if (window.CaseReportManagement) {
+            console.log('✅ Loading CaseReportManagement component');
             AppState.components.caseReportManagement = window.CaseReportManagement;
             render(
                 createElement(window.CaseReportManagement),
                 document.getElementById('case-reports-content')
             );
+        } else {
+            console.warn('⚠️ CaseReportManagement component not found');
         }
         
         console.log('✅ Components initialized successfully');

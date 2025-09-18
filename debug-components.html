@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Component Loading Test</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center text-blue-600">Component Loading Debug</h1>
+        
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-semibold mb-4">Loading Status</h2>
+            <div id="loading-status">Checking component loading...</div>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Test Component Render</h2>
+            <div id="test-component">Loading test component...</div>
+        </div>
+    </div>
+
+    <!-- Load Utilities -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Load One Test Component -->
+    <script type="text/babel" src="./components/PatientForm.jsx"></script>
+    
+    <!-- Test Script -->
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { render } = ReactDOM;
+
+        const DebugTest = () => {
+            const [status, setStatus] = useState('Checking components...');
+
+            useEffect(() => {
+                const checkComponents = () => {
+                    const components = [
+                        'Dashboard', 'PatientForm', 'VitalsForm', 'PrescriptionForm',
+                        'PrescriptionManagement', 'ExportData', 'PatientList', 'CaseReportManagement'
+                    ];
+                    
+                    const results = components.map(name => ({
+                        name,
+                        loaded: !!window[name],
+                        type: typeof window[name]
+                    }));
+                    
+                    const loadedCount = results.filter(r => r.loaded).length;
+                    
+                    setStatus(
+                        <div className="space-y-2">
+                            <div className="text-lg font-semibold">
+                                {loadedCount}/{components.length} components loaded
+                            </div>
+                            {results.map(result => (
+                                <div key={result.name} className={`flex justify-between p-2 rounded ${result.loaded ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                    <span>{result.name}</span>
+                                    <span>{result.loaded ? '✅ Loaded' : '❌ Missing'}</span>
+                                </div>
+                            ))}
+                        </div>
+                    );
+                };
+                
+                // Check immediately
+                checkComponents();
+                
+                // Check again after a delay
+                setTimeout(checkComponents, 2000);
+            }, []);
+
+            return (
+                <div>
+                    {status}
+                </div>
+            );
+        };
+
+        // Try to render a test component
+        const TestComponent = () => {
+            const [testResult, setTestResult] = useState('Waiting...');
+            
+            useEffect(() => {
+                setTimeout(() => {
+                    if (window.PatientForm) {
+                        try {
+                            setTestResult('✅ PatientForm component can be rendered!');
+                        } catch (error) {
+                            setTestResult(`❌ Error rendering PatientForm: ${error.message}`);
+                        }
+                    } else {
+                        setTestResult('❌ PatientForm component not found');
+                    }
+                }, 1500);
+            }, []);
+            
+            return <div className="p-3 bg-blue-50 rounded">{testResult}</div>;
+        };
+
+        // Render debug components
+        render(<DebugTest />, document.getElementById('loading-status'));
+        render(<TestComponent />, document.getElementById('test-component'));
+    </script>
+</body>
+</html>

@@ -563,4 +563,7 @@ window.HMISComponents.PrescriptionForm = ({ patients, prescriptions, setPrescrip
     );
 };
 
+// Export to window object for global access
+window.PrescriptionForm = PrescriptionForm;
+
 console.log('PrescriptionForm component loaded successfully');

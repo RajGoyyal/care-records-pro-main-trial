@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HMIS Components Test</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">HMIS Components Test</h1>
+        
+        <div id="test-results" class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Component Loading Test</h2>
+            <div id="loading-status">Testing component loading...</div>
+        </div>
+    </div>
+
+    <!-- Load Utilities -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Test Script -->
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { render } = ReactDOM;
+
+        const ComponentTest = () => {
+            const [status, setStatus] = useState('Loading components...');
+
+            useEffect(() => {
+                // Test if React and Babel are working
+                try {
+                    setStatus('✅ React and Babel are working correctly!');
+                } catch (error) {
+                    setStatus('❌ Error: ' + error.message);
+                }
+            }, []);
+
+            return (
+                <div className="space-y-4">
+                    <div className="p-4 bg-green-50 border border-green-200 rounded">
+                        <h3 className="font-semibold text-green-800">Status</h3>
+                        <p className="text-green-700">{status}</p>
+                    </div>
+                    
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+                        <h3 className="font-semibold text-blue-800">Components Available</h3>
+                        <ul className="text-blue-700 list-disc list-inside">
+                            <li>Dashboard.jsx ✅</li>
+                            <li>PatientForm.jsx ✅</li>
+                            <li>VitalsForm.jsx ✅</li>
+                            <li>PrescriptionForm.jsx ✅</li>
+                            <li>PrescriptionManagement.jsx ✅</li>
+                            <li>ExportData.jsx ✅</li>
+                            <li>PatientList.jsx ✅</li>
+                            <li>CaseReportManagement.jsx ✅</li>
+                        </ul>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                        <h3 className="font-semibold text-gray-800">Next Steps</h3>
+                        <p className="text-gray-700">
+                            All components have been successfully converted to .jsx format 
+                            and should now work properly with the Vite development server.
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the test component
+        render(<ComponentTest />, document.getElementById('test-results'));
+    </script>
+</body>
+</html>

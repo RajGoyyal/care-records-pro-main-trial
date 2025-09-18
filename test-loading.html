@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Component Debug - HMIS</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto max-w-6xl">
+        <h1 class="text-3xl font-bold mb-8 text-center text-blue-600">Component Loading Diagnostics</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- React Status -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">React Status</h2>
+                <div id="react-status">Checking...</div>
+            </div>
+            
+            <!-- Babel Status -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Babel Status</h2>
+                <div id="babel-status">Checking...</div>
+            </div>
+            
+            <!-- Components Status -->
+            <div class="bg-white p-6 rounded-lg shadow md:col-span-2">
+                <h2 class="text-xl font-semibold mb-4">Components Status</h2>
+                <div id="components-status">Checking components...</div>
+            </div>
+            
+            <!-- Console Log -->
+            <div class="bg-white p-6 rounded-lg shadow md:col-span-2">
+                <h2 class="text-xl font-semibent mb-4">Live Console Output</h2>
+                <div id="console-output" class="bg-gray-50 p-4 rounded text-sm font-mono max-h-64 overflow-y-auto">
+                    Starting diagnostics...
+                </div>
+            </div>
+            
+            <!-- Test Component Render -->
+            <div class="bg-white p-6 rounded-lg shadow md:col-span-2">
+                <h2 class="text-xl font-semibold mb-4">Test Component Render</h2>
+                <div id="test-render">Loading test...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Utilities -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Load One Component for Testing -->
+    <script type="text/babel" src="./components/Dashboard.jsx"></script>
+    
+    <!-- Diagnostic Script -->
+    <script>
+        // Capture console output
+        const logs = [];
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        const addLog = (type, ...args) => {
+            const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+            logs.push(`[${type}] ${new Date().toLocaleTimeString()} - ${message}`);
+            updateConsoleOutput();
+        };
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            addLog('LOG', ...args);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            addLog('ERROR', ...args);
+        };
+        
+        console.warn = (...args) => {
+            originalWarn(...args);
+            addLog('WARN', ...args);
+        };
+        
+        function updateConsoleOutput() {
+            const output = document.getElementById('console-output');
+            if (output) {
+                output.innerHTML = logs.slice(-20).map(log => 
+                    `<div class="${log.includes('ERROR') ? 'text-red-600' : log.includes('WARN') ? 'text-yellow-600' : 'text-gray-800'}">${log}</div>`
+                ).join('');
+                output.scrollTop = output.scrollHeight;
+            }
+        }
+        
+        // Check React status
+        function checkReact() {
+            const status = document.getElementById('react-status');
+            if (window.React && window.ReactDOM) {
+                status.innerHTML = `
+                    <div class="text-green-600 font-semibold">✅ React Loaded</div>
+                    <div class="text-sm text-gray-600">React version: ${React.version}</div>
+                `;
+                console.log('React is available');
+            } else {
+                status.innerHTML = `<div class="text-red-600 font-semibold">❌ React Not Available</div>`;
+                console.error('React is not available');
+            }
+        }
+        
+        // Check Babel status
+        function checkBabel() {
+            const status = document.getElementById('babel-status');
+            if (window.Babel) {
+                status.innerHTML = `
+                    <div class="text-green-600 font-semibold">✅ Babel Loaded</div>
+                    <div class="text-sm text-gray-600">Transform available: ${typeof Babel.transform === 'function'}</div>
+                `;
+                console.log('Babel is available');
+            } else {
+                status.innerHTML = `<div class="text-red-600 font-semibold">❌ Babel Not Available</div>`;
+                console.error('Babel is not available');
+            }
+        }
+        
+        // Check components
+        function checkComponents() {
+            const components = ['Dashboard', 'PatientForm', 'VitalsForm', 'PrescriptionForm'];
+            const status = document.getElementById('components-status');
+            
+            const results = components.map(name => {
+                const available = !!window[name];
+                const type = typeof window[name];
+                console.log(`Component ${name}: ${available ? 'Available' : 'Missing'} (type: ${type})`);
+                return { name, available, type };
+            });
+            
+            const html = results.map(result => 
+                `<div class="flex justify-between p-2 rounded mb-1 ${result.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                    <span>${result.name}</span>
+                    <span>${result.available ? '✅ Available' : '❌ Missing'}</span>
+                </div>`
+            ).join('');
+            
+            status.innerHTML = html;
+        }
+        
+        // Test rendering a component
+        function testRender() {
+            const testDiv = document.getElementById('test-render');
+            
+            setTimeout(() => {
+                if (window.React && window.ReactDOM && window.Dashboard) {
+                    try {
+                        console.log('Attempting to render Dashboard component...');
+                        const { createElement } = React;
+                        const { render } = ReactDOM;
+                        
+                        // Create a simple test version
+                        const TestComponent = () => {
+                            return createElement('div', {
+                                className: 'p-4 bg-green-100 text-green-800 rounded'
+                            }, '✅ Component Render Test Successful! Dashboard component is working.');
+                        };
+                        
+                        render(createElement(TestComponent), testDiv);
+                        console.log('Test render successful');
+                        
+                        // Now try the actual Dashboard
+                        setTimeout(() => {
+                            try {
+                                render(createElement(window.Dashboard), testDiv);
+                                console.log('Dashboard component rendered successfully');
+                            } catch (error) {
+                                console.error('Error rendering Dashboard:', error);
+                                testDiv.innerHTML = `<div class="text-red-600">Error rendering Dashboard: ${error.message}</div>`;
+                            }
+                        }, 1000);
+                        
+                    } catch (error) {
+                        console.error('Error in test render:', error);
+                        testDiv.innerHTML = `<div class="text-red-600">Test render failed: ${error.message}</div>`;
+                    }
+                } else {
+                    const missing = [];
+                    if (!window.React) missing.push('React');
+                    if (!window.ReactDOM) missing.push('ReactDOM');
+                    if (!window.Dashboard) missing.push('Dashboard');
+                    
+                    testDiv.innerHTML = `<div class="text-red-600">Missing: ${missing.join(', ')}</div>`;
+                    console.error('Missing dependencies:', missing);
+                }
+            }, 2000);
+        }
+        
+        // Run diagnostics
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Starting diagnostics...');
+            
+            setTimeout(() => {
+                checkReact();
+                checkBabel();
+            }, 100);
+            
+            setTimeout(() => {
+                checkComponents();
+            }, 1000);
+            
+            setTimeout(() => {
+                checkComponents(); // Check again after more time
+            }, 3000);
+            
+            testRender();
+        });
+    </script>
+</body>
+</html>

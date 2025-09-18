@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inline Component Test</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto">
+        <h1 class="text-2xl font-bold mb-4">Inline Component Test</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded shadow">
+                <h2 class="text-lg font-semibold mb-2">External Dashboard Test</h2>
+                <div id="external-test">Loading...</div>
+            </div>
+            
+            <div class="bg-white p-4 rounded shadow">
+                <h2 class="text-lg font-semibold mb-2">Inline Dashboard Test</h2>
+                <div id="inline-test">Loading...</div>
+            </div>
+        </div>
+        
+        <div class="mt-4 bg-white p-4 rounded shadow">
+            <h2 class="text-lg font-semibold mb-2">Console Log</h2>
+            <div id="console-log" class="bg-gray-100 p-3 rounded font-mono text-sm max-h-64 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- Load Utilities -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Console logging -->
+    <script>
+        const consoleDiv = document.getElementById('console-log');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function addToConsole(type, message) {
+            const div = document.createElement('div');
+            div.className = type === 'error' ? 'text-red-600' : 'text-gray-800';
+            div.textContent = `[${type.toUpperCase()}] ${message}`;
+            consoleDiv.appendChild(div);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            addToConsole('log', args.join(' '));
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            addToConsole('error', args.join(' '));
+        };
+        
+        console.log('Console logging ready');
+    </script>
+    
+    <!-- Inline Dashboard Component -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        const InlineDashboard = () => {
+            const [message, setMessage] = useState('Inline Dashboard Loading...');
+            
+            useEffect(() => {
+                setTimeout(() => {
+                    setMessage('✅ Inline Dashboard Component Working!');
+                }, 1000);
+            }, []);
+            
+            return (
+                <div className="p-4 bg-blue-100 text-blue-800 rounded">
+                    <h3 className="font-semibold mb-2">Simple Dashboard</h3>
+                    <p>{message}</p>
+                    <div className="mt-2 text-sm">
+                        <div>React: {React ? '✅' : '❌'}</div>
+                        <div>Hooks: {useState && useEffect ? '✅' : '❌'}</div>
+                    </div>
+                </div>
+            );
+        };
+        
+        window.InlineDashboard = InlineDashboard;
+        console.log('✅ InlineDashboard component defined');
+    </script>
+    
+    <!-- Load External Dashboard -->
+    <script type="text/babel" src="./components/Dashboard.jsx"></script>
+    
+    <!-- Test Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Starting component tests...');
+            
+            const { createElement } = React;
+            const { render } = ReactDOM;
+            
+            // Test inline component immediately
+            if (window.InlineDashboard) {
+                console.log('Testing inline component...');
+                try {
+                    render(
+                        createElement(window.InlineDashboard),
+                        document.getElementById('inline-test')
+                    );
+                    console.log('✅ Inline component rendered successfully');
+                } catch (error) {
+                    console.error('❌ Inline component error:', error.message);
+                }
+            }
+            
+            // Test external component with delays
+            function testExternalComponent() {
+                console.log('Checking for external Dashboard component...');
+                
+                if (window.Dashboard) {
+                    console.log('✅ External Dashboard found, attempting render...');
+                    try {
+                        const mockProps = {
+                            patients: [{ id: 1, fullName: 'Test Patient', age: 30, gender: 'Male' }],
+                            vitals: [],
+                            prescriptions: [],
+                            caseReports: [],
+                            sickIntimations: []
+                        };
+                        
+                        render(
+                            createElement(window.Dashboard, mockProps),
+                            document.getElementById('external-test')
+                        );
+                        
+                        console.log('✅ External Dashboard rendered successfully');
+                        
+                    } catch (error) {
+                        console.error('❌ External Dashboard render error:', error.message);
+                        console.error('Stack:', error.stack);
+                        
+                        document.getElementById('external-test').innerHTML = `
+                            <div class="text-red-600">
+                                <div>Error: ${error.message}</div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    console.warn('⚠️ External Dashboard component not found yet');
+                    document.getElementById('external-test').innerHTML = `
+                        <div class="text-yellow-600">Dashboard component not loaded yet...</div>
+                    `;
+                }
+            }
+            
+            // Test external component multiple times with increasing delays
+            setTimeout(testExternalComponent, 1000);
+            setTimeout(testExternalComponent, 2000);
+            setTimeout(testExternalComponent, 4000);
+        });
+    </script>
+</body>
+</html>

@@ -1,14 +1,16 @@
 // Dashboard Component
+const { useState, useEffect, useRef } = React;
+
 const Dashboard = ({ patients, vitals, prescriptions, caseReports, sickIntimations, setActiveTab }) => {
     const [selectedTimeframe, setSelectedTimeframe] = useState('week');
     const [showAlerts, setShowAlerts] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [quickSearchTerm, setQuickSearchTerm] = useState('');
     const [showQuickSearch, setShowQuickSearch] = useState(false);
-    const genderChartRef = React.useRef(null);
-    const priorityChartRef = React.useRef(null);
-    const ageChartRef = React.useRef(null);
-    const followUpChartRef = React.useRef(null);
+    const genderChartRef = useRef(null);
+    const priorityChartRef = useRef(null);
+    const ageChartRef = useRef(null);
+    const followUpChartRef = useRef(null);
     const [hoverInfo, setHoverInfo] = useState(null);
     
     // Update time every second
@@ -669,3 +671,8 @@ const Dashboard = ({ patients, vitals, prescriptions, caseReports, sickIntimatio
         </div>
     );
 };
+
+// Export to window object for global access
+window.Dashboard = Dashboard;
+console.log('✅ Dashboard component loaded and exported to window.Dashboard');
+console.log('Dashboard type:', typeof window.Dashboard);

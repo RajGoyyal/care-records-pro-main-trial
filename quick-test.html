@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Component Test - Dashboard</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Chart.js for dashboard charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center text-blue-600">Quick Dashboard Test</h1>
+        
+        <div id="dashboard-test" class="bg-white p-6 rounded-lg shadow">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p class="text-gray-600">Loading Dashboard...</p>
+            </div>
+        </div>
+        
+        <div class="mt-4 p-4 bg-yellow-50 rounded">
+            <div id="console-debug">Console output will appear here...</div>
+        </div>
+    </div>
+
+    <!-- Load Utilities -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Load Dashboard Component -->
+    <script type="text/babel" src="./components/Dashboard.jsx"></script>
+    
+    <!-- Test Script -->
+    <script>
+        // Console logging
+        const debugDiv = document.getElementById('console-debug');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function logToDiv(type, ...args) {
+            const message = args.join(' ');
+            debugDiv.innerHTML += `<div class="${type === 'error' ? 'text-red-600' : 'text-gray-800'}">[${type}] ${message}</div>`;
+        }
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            logToDiv('log', ...args);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            logToDiv('error', ...args);
+        };
+        
+        // Initialize test
+        function initTest() {
+            console.log('🔄 Starting Dashboard test...');
+            
+            setTimeout(() => {
+                console.log('🔍 Checking React availability...');
+                if (window.React && window.ReactDOM) {
+                    console.log('✅ React and ReactDOM are available');
+                    
+                    setTimeout(() => {
+                        console.log('🔍 Checking Dashboard component...');
+                        if (window.Dashboard) {
+                            console.log('✅ Dashboard component found!');
+                            
+                            try {
+                                const { createElement } = React;
+                                const { render } = ReactDOM;
+                                
+                                // Render Dashboard with mock data
+                                const mockData = {
+                                    patients: [
+                                        { id: 1, fullName: 'Test Patient 1', age: 25, gender: 'Male' },
+                                        { id: 2, fullName: 'Test Patient 2', age: 30, gender: 'Female' }
+                                    ],
+                                    vitals: [
+                                        { patientId: 1, systolic: 120, diastolic: 80, timestamp: Date.now() }
+                                    ],
+                                    prescriptions: [
+                                        { patientId: 1, medication: 'Test Medicine', dosage: '500mg' }
+                                    ]
+                                };
+                                
+                                render(
+                                    createElement(window.Dashboard, mockData),
+                                    document.getElementById('dashboard-test')
+                                );
+                                
+                                console.log('✅ Dashboard rendered successfully!');
+                            } catch (error) {
+                                console.error('❌ Error rendering Dashboard:', error.message);
+                                console.error('Stack:', error.stack);
+                            }
+                        } else {
+                            console.error('❌ Dashboard component not found on window object');
+                            console.log('Available on window:', Object.keys(window).filter(key => key.startsWith('D')));
+                        }
+                    }, 2000);
+                } else {
+                    console.error('❌ React or ReactDOM not available');
+                }
+            }, 1000);
+        }
+        
+        document.addEventListener('DOMContentLoaded', initTest);
+    </script>
+</body>
+</html>

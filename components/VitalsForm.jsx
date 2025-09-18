@@ -1,13 +1,13 @@
 // VitalsForm Component - Patient vital signs recording with BMI and BP analysis
 // Usage: <VitalsForm patients={patients} vitals={vitals} setVitals={setVitals} />
 
-window.HMISComponents = window.HMISComponents || {};
+const { useState, useEffect } = React;
 
-window.HMISComponents.VitalsForm = ({ patients, vitals, setVitals }) => {
+const VitalsForm = ({ patients, vitals, setVitals }) => {
     const safePatients = patients || [];
     const safeVitals = vitals || [];
     
-    const [formData, setFormData] = React.useState({
+    const [formData, setFormData] = useState({
         usn: '',
         weight: '',
         height: '',
@@ -19,10 +19,10 @@ window.HMISComponents.VitalsForm = ({ patients, vitals, setVitals }) => {
         oxygenSaturation: '',
         notes: ''
     });
-    const [errors, setErrors] = React.useState({});
-    const [selectedPatientDetails, setSelectedPatientDetails] = React.useState(null);
-    const [patientSearchTerm, setPatientSearchTerm] = React.useState('');
-    const [showPatientDropdown, setShowPatientDropdown] = React.useState(false);
+    const [errors, setErrors] = useState({});
+    const [selectedPatientDetails, setSelectedPatientDetails] = useState(null);
+    const [patientSearchTerm, setPatientSearchTerm] = useState('');
+    const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
     const validateForm = () => {
         const newErrors = {};
@@ -199,7 +199,7 @@ window.HMISComponents.VitalsForm = ({ patients, vitals, setVitals }) => {
         if (errors.usn) setErrors(prev => ({ ...prev, usn: '' }));
     };
 
-    React.useEffect(() => {
+    useEffect(() => {
         const onClick = (e) => {
             if (!e.target.closest('.vitals-patient-select')) {
                 setShowPatientDropdown(false);
@@ -454,5 +454,8 @@ window.HMISComponents.VitalsForm = ({ patients, vitals, setVitals }) => {
         )
     );
 };
+
+// Export to window object for global access
+window.VitalsForm = VitalsForm;
 
 console.log('VitalsForm component loaded successfully');

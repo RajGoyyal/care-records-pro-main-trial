@@ -1,4 +1,6 @@
 // PatientForm Component
+const { useState, useEffect } = React;
+
 const PatientForm = ({ patients, setPatients, selectedPatient, setSelectedPatient, saveToStorage, syncWithDatabase, checkServerHealth, serverAvailable }) => {
     const [formData, setFormData] = useState({
         usn: '',
@@ -256,3 +258,6 @@ const PatientForm = ({ patients, setPatients, selectedPatient, setSelectedPatien
         </div>
     );
 };
+
+// Export to window object for global access
+window.PatientForm = PatientForm;

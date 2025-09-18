@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Component Test</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto max-w-4xl">
+        <h1 class="text-3xl font-bold mb-8 text-center text-blue-600">Simple Component Test</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Patient Form Test</h2>
+                <div id="patient-form-test">Loading...</div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Vitals Form Test</h2>
+                <div id="vitals-form-test">Loading...</div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Dashboard Test</h2>
+                <div id="dashboard-test">Loading...</div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Console Output</h2>
+                <div id="console-output" class="bg-gray-50 p-4 rounded text-sm font-mono max-h-60 overflow-y-auto">
+                    Checking components...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Utilities -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Simple inline component test -->
+    <script type="text/babel">
+        const { createElement, useState, useEffect } = React;
+        const { render } = ReactDOM;
+        
+        // Simple test component
+        const TestComponent = ({ name, targetId, componentName }) => {
+            const [status, setStatus] = useState('Checking...');
+            
+            useEffect(() => {
+                const checkComponent = () => {
+                    if (window[componentName]) {
+                        try {
+                            setStatus(`✅ ${componentName} loaded and available!`);
+                            // Try to render the actual component
+                            if (targetId !== 'console-output') {
+                                const element = document.getElementById(targetId);
+                                if (element && element.children.length === 1) {
+                                    render(createElement(window[componentName]), element);
+                                }
+                            }
+                        } catch (error) {
+                            setStatus(`❌ Error: ${error.message}`);
+                            console.error(`Error with ${componentName}:`, error);
+                        }
+                    } else {
+                        setStatus(`❌ ${componentName} not found`);
+                    }
+                };
+                
+                // Check after delays to allow for loading
+                setTimeout(checkComponent, 100);
+                setTimeout(checkComponent, 1000);
+                setTimeout(checkComponent, 3000);
+            }, [componentName, targetId]);
+            
+            return createElement('div', { className: 'text-center p-4' }, status);
+        };
+        
+        // Console logger component
+        const ConsoleLogger = () => {
+            const [logs, setLogs] = useState(['Starting component check...']);
+            
+            useEffect(() => {
+                const originalLog = console.log;
+                const originalError = console.error;
+                const originalWarn = console.warn;
+                
+                const addLog = (type, ...args) => {
+                    const message = args.join(' ');
+                    setLogs(prev => [...prev.slice(-20), `[${type}] ${message}`]);
+                };
+                
+                console.log = (...args) => {
+                    originalLog(...args);
+                    addLog('LOG', ...args);
+                };
+                
+                console.error = (...args) => {
+                    originalError(...args);
+                    addLog('ERROR', ...args);
+                };
+                
+                console.warn = (...args) => {
+                    originalWarn(...args);
+                    addLog('WARN', ...args);
+                };
+                
+                // Check component availability
+                const interval = setInterval(() => {
+                    const components = ['PatientForm', 'VitalsForm', 'Dashboard'];
+                    const status = components.map(name => `${name}: ${window[name] ? '✅' : '❌'}`).join(' | ');
+                    addLog('STATUS', status);
+                }, 2000);
+                
+                return () => {
+                    console.log = originalLog;
+                    console.error = originalError;
+                    console.warn = originalWarn;
+                    clearInterval(interval);
+                };
+            }, []);
+            
+            return createElement('div', null, 
+                logs.map((log, index) => 
+                    createElement('div', { 
+                        key: index, 
+                        className: log.includes('ERROR') ? 'text-red-600' : 
+                                  log.includes('WARN') ? 'text-yellow-600' : 
+                                  'text-gray-800'
+                    }, log)
+                )
+            );
+        };
+        
+        // Render test components immediately
+        render(createElement(ConsoleLogger), document.getElementById('console-output'));
+        
+        // Render status checkers with delays
+        setTimeout(() => {
+            render(
+                createElement(TestComponent, { 
+                    name: 'Patient Form', 
+                    targetId: 'patient-form-test',
+                    componentName: 'PatientForm' 
+                }), 
+                document.getElementById('patient-form-test')
+            );
+        }, 500);
+        
+        setTimeout(() => {
+            render(
+                createElement(TestComponent, { 
+                    name: 'Vitals Form', 
+                    targetId: 'vitals-form-test',
+                    componentName: 'VitalsForm' 
+                }), 
+                document.getElementById('vitals-form-test')
+            );
+        }, 1000);
+        
+        setTimeout(() => {
+            render(
+                createElement(TestComponent, { 
+                    name: 'Dashboard', 
+                    targetId: 'dashboard-test',
+                    componentName: 'Dashboard' 
+                }), 
+                document.getElementById('dashboard-test')
+            );
+        }, 1500);
+    </script>
+    
+    <!-- Load components after the test framework -->
+    <script type="text/babel" src="./components/PatientForm.jsx"></script>
+    <script type="text/babel" src="./components/VitalsForm.jsx"></script>
+    <script type="text/babel" src="./components/Dashboard.jsx"></script>
+</body>
+</html>
