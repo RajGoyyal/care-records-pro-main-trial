@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Horizon Sanjeevani Clinic - HMIS</title>
+    
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/main.css">
+    <link rel="stylesheet" href="./css/components.css">
+    <link rel="stylesheet" href="./css/dashboard.css">
+    <link rel="stylesheet" href="./css/forms.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header Component -->
+    <header class="gradient-bg text-white p-6 shadow-lg">
+        <div class="container mx-auto">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <img src="nhce_25-scaled-1-2048x683.png" alt="NHCE Logo" class="h-12 w-auto">
+                    <div>
+                        <h1 class="text-2xl font-bold">New Horizon Sanjeevani Clinic</h1>
+                        <p class="text-blue-200 text-sm">Hospital Management Information System</p>
+                    </div>
+                </div>
+                <div id="server-status" class="flex items-center space-x-2">
+                    <div id="server-indicator" class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                    <span id="server-text" class="text-sm">Checking server...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="container mx-auto">
+            <div class="flex space-x-1 overflow-x-auto">
+                <button class="tab active" data-tab="dashboard">📊 Dashboard</button>
+                <button class="tab" data-tab="patients">👥 Patients</button>
+                <button class="tab" data-tab="vitals">🩺 Vitals</button>
+                <button class="tab" data-tab="prescriptions">💊 Prescriptions</button>
+                <button class="tab" data-tab="prescription-management">📋 Rx Management</button>
+                <button class="tab" data-tab="patient-list">📝 Patient List</button>
+                <button class="tab" data-tab="export">📤 Export</button>
+                <button class="tab" data-tab="case-reports">📄 Case Reports</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="container mx-auto p-6">
+        <!-- Alert Messages -->
+        <div id="alert-container"></div>
+        
+        <!-- Tab Content -->
+        <div id="tab-content" class="mt-4">
+            <div id="dashboard-content" class="tab-pane active">
+                <!-- Dashboard will be rendered here -->
+            </div>
+            
+            <div id="patients-content" class="tab-pane">
+                <!-- Patient Form will be rendered here -->
+            </div>
+            
+            <div id="vitals-content" class="tab-pane">
+                <!-- Vitals Form will be rendered here -->
+            </div>
+            
+            <div id="prescriptions-content" class="tab-pane">
+                <!-- Prescription Form will be rendered here -->
+            </div>
+            
+            <div id="prescription-management-content" class="tab-pane">
+                <!-- Prescription Management will be rendered here -->
+            </div>
+            
+            <div id="patient-list-content" class="tab-pane">
+                <!-- Patient List will be rendered here -->
+            </div>
+            
+            <div id="export-content" class="tab-pane">
+                <!-- Export Data will be rendered here -->
+            </div>
+            
+            <div id="case-reports-content" class="tab-pane">
+                <!-- Case Report Management will be rendered here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-6 mt-12">
+        <div class="container mx-auto text-center">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <h3 class="font-semibold">New Horizon Sanjeevani Clinic</h3>
+                    <p class="text-gray-400 text-sm">Quality Healthcare for NHCE Community</p>
+                </div>
+                <div class="text-sm text-gray-400">
+                    <p>© 2024 Hospital Management Information System</p>
+                    <p>Developed by LeadOnyx Apex LLP</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Load Utilities First -->
+    <script src="./components/utilities.js"></script>
+    
+    <!-- Load Individual Components -->
+    <script src="./components/Dashboard.js"></script>
+    <script src="./components/PatientForm.js"></script>
+    <script src="./components/VitalsForm.js"></script>
+    <script src="./components/PrescriptionForm.js"></script>
+    <script src="./components/PrescriptionManagement.js"></script>
+    <script src="./components/ExportData.js"></script>
+    <script src="./components/PatientList.js"></script>
+    <script src="./components/CaseReportManagement.js"></script>
+    
+    <!-- Main Application Script -->
+    <script src="./js/app.js"></script>
+    
+    <!-- Navigation Script -->
+    <script src="./js/navigation.js"></script>
+</body>
+</html>

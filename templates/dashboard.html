@@ -1,0 +1,193 @@
+<!-- Dashboard Template -->
+<div class="dashboard-template">
+    <!-- Filter Controls -->
+    <div class="dashboard-filters">
+        <div class="filter-group">
+            <div class="filter-item">
+                <label class="filter-label">Time Period</label>
+                <select class="filter-select" id="dashboard-time-filter">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month" selected>This Month</option>
+                    <option value="year">This Year</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">Department</label>
+                <select class="filter-select" id="dashboard-dept-filter">
+                    <option value="all">All Departments</option>
+                    <option value="opd">OPD</option>
+                    <option value="emergency">Emergency</option>
+                    <option value="pharmacy">Pharmacy</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">Status</label>
+                <select class="filter-select" id="dashboard-status-filter">
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="pending">Pending</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="refreshDashboardData()">
+                <span>📊</span> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Grid -->
+    <div class="stats-grid">
+        <div class="stat-card" id="patients-today-card">
+            <div class="stat-header">
+                <span class="stat-title">Patients Today</span>
+                <div class="stat-icon" style="background: #eff6ff; color: #2563eb;">
+                    👥
+                </div>
+            </div>
+            <div class="stat-value" id="patients-today-value">-</div>
+            <div class="stat-change neutral" id="patients-today-change">
+                <span>📈</span> Loading...
+            </div>
+        </div>
+
+        <div class="stat-card" id="prescriptions-issued-card">
+            <div class="stat-header">
+                <span class="stat-title">Prescriptions Issued</span>
+                <div class="stat-icon" style="background: #f0fdf4; color: #16a34a;">
+                    💊
+                </div>
+            </div>
+            <div class="stat-value" id="prescriptions-issued-value">-</div>
+            <div class="stat-change neutral" id="prescriptions-issued-change">
+                <span>📈</span> Loading...
+            </div>
+        </div>
+
+        <div class="stat-card" id="vitals-recorded-card">
+            <div class="stat-header">
+                <span class="stat-title">Vitals Recorded</span>
+                <div class="stat-icon" style="background: #fef7ff; color: #a855f7;">
+                    🩺
+                </div>
+            </div>
+            <div class="stat-value" id="vitals-recorded-value">-</div>
+            <div class="stat-change neutral" id="vitals-recorded-change">
+                <span>📈</span> Loading...
+            </div>
+        </div>
+
+        <div class="stat-card" id="follow-ups-scheduled-card">
+            <div class="stat-header">
+                <span class="stat-title">Follow-ups Scheduled</span>
+                <div class="stat-icon" style="background: #fffbeb; color: #d97706;">
+                    📅
+                </div>
+            </div>
+            <div class="stat-value" id="follow-ups-scheduled-value">-</div>
+            <div class="stat-change neutral" id="follow-ups-scheduled-change">
+                <span>📈</span> Loading...
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Patient Demographics Chart -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3 class="chart-title">Patient Demographics</h3>
+                <div class="chart-controls">
+                    <select class="form-select" id="demographics-chart-type">
+                        <option value="age-groups">Age Groups</option>
+                        <option value="gender">Gender</option>
+                        <option value="department">Department</option>
+                    </select>
+                </div>
+            </div>
+            <canvas id="demographics-chart" class="chart-canvas"></canvas>
+        </div>
+
+        <!-- Visit Trends Chart -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3 class="chart-title">Visit Trends</h3>
+                <div class="chart-controls">
+                    <select class="form-select" id="trends-chart-period">
+                        <option value="daily">Daily</option>
+                        <option value="weekly" selected>Weekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+            </div>
+            <canvas id="trends-chart" class="chart-canvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Recent Activity & Alerts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <!-- Recent Activity -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Recent Activity</h3>
+            </div>
+            <div class="card-content">
+                <div id="recent-activity-list" class="space-y-3">
+                    <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded">
+                        <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium">Loading recent activity...</p>
+                            <p class="text-xs text-gray-500">Please wait</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Alerts -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">System Alerts</h3>
+            </div>
+            <div class="card-content">
+                <div id="system-alerts-list" class="space-y-3">
+                    <div class="alert-item info">
+                        <div class="alert-icon">ℹ️</div>
+                        <div class="alert-content">
+                            <div class="alert-title">System Status</div>
+                            <div class="alert-description">Loading system alerts...</div>
+                            <div class="alert-time">Just now</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card mt-6">
+        <div class="card-header">
+            <h3 class="card-title">Quick Actions</h3>
+        </div>
+        <div class="card-content">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button class="btn btn-outline p-4 text-center" onclick="navigateToTab('patients')">
+                    <div class="text-2xl mb-2">👥</div>
+                    <div class="text-sm font-medium">Add Patient</div>
+                </button>
+                <button class="btn btn-outline p-4 text-center" onclick="navigateToTab('vitals')">
+                    <div class="text-2xl mb-2">🩺</div>
+                    <div class="text-sm font-medium">Record Vitals</div>
+                </button>
+                <button class="btn btn-outline p-4 text-center" onclick="navigateToTab('prescriptions')">
+                    <div class="text-2xl mb-2">💊</div>
+                    <div class="text-sm font-medium">New Prescription</div>
+                </button>
+                <button class="btn btn-outline p-4 text-center" onclick="navigateToTab('export')">
+                    <div class="text-2xl mb-2">📤</div>
+                    <div class="text-sm font-medium">Export Data</div>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
