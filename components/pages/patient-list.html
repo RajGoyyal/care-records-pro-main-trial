@@ -66,11 +66,23 @@
     </div>
   </footer>
   <script src="../utilities.js"></script>
-  <script type="text/babel" src="../PatientList.jsx"></script>
+  <script src="../component-loader.js"></script>
   <script>
     async function checkServerHealth() { const statusElement = document.getElementById('server-status'); try { const response = await fetch('/api/health'); if (response.ok) { statusElement.innerHTML = `<div class='w-3 h-3 bg-green-400 rounded-full'></div><span class='text-sm'>Server Online</span>`; } else { throw new Error('Server not responding'); } } catch (error) { statusElement.innerHTML = `<div class='w-3 h-3 bg-red-400 rounded-full'></div><span class='text-sm'>Server Offline</span>`; console.warn('Server health check failed:', error); } }
-    function initializePatientList() { try { console.log('🚀 Initializing Patient List (moved page)...'); checkServerHealth(); setTimeout(() => { if (window.PatientList) { console.log('✅ PatientList component found, rendering...'); const { createElement } = React; const { render } = ReactDOM; render(createElement(window.PatientList), document.getElementById('patient-list-content')); console.log('✅ PatientList rendered successfully'); } else { console.error('❌ PatientList component not found'); document.getElementById('patient-list-content').innerHTML = `<div class='text-center py-12'><div class='text-red-600 text-xl mb-4'>⚠️ Component Loading Error</div><p class='text-gray-600'>Patient List component could not be loaded.</p><button onclick='location.reload()' class='mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700'>Reload Page</button></div>`; } }, 1500); } catch (error) { console.error('❌ Error initializing patient list:', error); } }
-    document.addEventListener('DOMContentLoaded', initializePatientList);
+    async function mountPatientList(){
+      const target = document.getElementById('patient-list-content');
+      try {
+        const cmp = await HMISLoader.loadJSXComponent('PatientList','../PatientList.jsx');
+        if(!cmp) throw new Error('PatientList did not load');
+        const { createElement } = React; const { render } = ReactDOM;
+        render(createElement(cmp), target);
+        console.log('✅ PatientList rendered via loader');
+      } catch(e){
+        console.error('❌ PatientList mount failed:', e.message);
+        target.innerHTML = `<div class='text-center py-12'><div class='text-red-600 text-xl mb-4'>⚠️ Component Loading Error</div><p class='text-gray-600'>${e.message}</p><button onclick='location.reload()' class='mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700'>Reload Page</button></div>`;
+      }
+    }
+    document.addEventListener('DOMContentLoaded', ()=>{ console.log('🚀 Init Patient List (loader mode)'); checkServerHealth(); mountPatientList(); });
   </script>
 </body>
 </html>

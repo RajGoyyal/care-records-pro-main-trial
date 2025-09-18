@@ -66,11 +66,23 @@
     </div>
   </footer>
   <script src="../utilities.js"></script>
-  <script type="text/babel" src="../ExportData.jsx"></script>
+  <script src="../component-loader.js"></script>
   <script>
     async function checkServerHealth() { const statusElement = document.getElementById('server-status'); try { const response = await fetch('/api/health'); if (response.ok) { statusElement.innerHTML = `<div class='w-3 h-3 bg-green-400 rounded-full'></div><span class='text-sm'>Server Online</span>`; } else { throw new Error('Server not responding'); } } catch (error) { statusElement.innerHTML = `<div class='w-3 h-3 bg-red-400 rounded-full'></div><span class='text-sm'>Server Offline</span>`; console.warn('Server health check failed:', error); } }
-    function initializeExportData() { try { console.log('🚀 Initializing Export Data (moved page)...'); checkServerHealth(); setTimeout(() => { if (window.ExportData) { console.log('✅ ExportData component found, rendering...'); const { createElement } = React; const { render } = ReactDOM; render(createElement(window.ExportData), document.getElementById('export-data-content')); console.log('✅ ExportData rendered successfully'); } else { console.error('❌ ExportData component not found'); document.getElementById('export-data-content').innerHTML = `<div class='text-center py-12'><div class='text-red-600 text-xl mb-4'>⚠️ Component Loading Error</div><p class='text-gray-600'>Export Data component could not be loaded.</p><button onclick='location.reload()' class='mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700'>Reload Page</button></div>`; } }, 1500); } catch (error) { console.error('❌ Error initializing export data:', error); } }
-    document.addEventListener('DOMContentLoaded', initializeExportData);
+    async function mountExportData(){
+      const target = document.getElementById('export-data-content');
+      try {
+        const cmp = await HMISLoader.loadJSXComponent('ExportData','../ExportData.jsx');
+        if(!cmp) throw new Error('ExportData did not load');
+        const { createElement } = React; const { render } = ReactDOM;
+        render(createElement(cmp), target);
+        console.log('✅ ExportData rendered via loader');
+      } catch(e){
+        console.error('❌ ExportData mount failed:', e.message);
+        target.innerHTML = `<div class='text-center py-12'><div class='text-red-600 text-xl mb-4'>⚠️ Component Loading Error</div><p class='text-gray-600'>${e.message}</p><button onclick='location.reload()' class='mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700'>Reload Page</button></div>`;
+      }
+    }
+    document.addEventListener('DOMContentLoaded', ()=>{ console.log('🚀 Init Export Data (loader mode)'); checkServerHealth(); mountExportData(); });
   </script>
 </body>
 </html>
