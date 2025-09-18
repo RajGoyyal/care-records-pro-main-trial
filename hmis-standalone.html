@@ -1190,7 +1190,7 @@
                                         <span className="text-sm font-medium cursor-pointer hover:underline" onClick={() => {
                                             if(!setActiveTab) return;
                                             if(alert.action === 'View Schedule') setActiveTab('schedule');
-                                            else if(alert.action === 'View Prescriptions' || alert.action === 'Review Urgent Cases') setActiveTab('prescriptions');
+                                            else if(alert.action === 'View Treatment' || alert.action === 'Review Urgent Cases') setActiveTab('prescriptions');
                                             else if(alert.action === 'Review Vitals') setActiveTab('vitals');
                                         }}>
                                             {alert.action}
@@ -1340,7 +1340,7 @@
                                 onClick={() => setActiveTab && setActiveTab('prescriptions')}
                                 className="btn btn-secondary flex items-center justify-center gap-2 py-4"
                             >
-                                💊 New Prescription
+                                💊 New Treatment
                             </button>
                             <button 
                                 onClick={() => setActiveTab && setActiveTab('vitals')}
@@ -1542,17 +1542,14 @@
 
                             <div>
                                 <label className="block text-sm font-medium mb-1">Gender *</label>
-                                <select
+                                <input
+                                    type="text"
                                     name="gender"
                                     value={formData.gender}
                                     onChange={handleChange}
                                     className="form-input"
-                                >
-                                    <option value="">Select Gender</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
+                                    placeholder="e.g., Male, Female, Other"
+                                />
                                 {errors.gender && <p className="text-red-500 text-sm">{errors.gender}</p>}
                             </div>
 
@@ -2726,7 +2723,7 @@
                                     <h3 style="margin-top:0; color:#333; text-align:center; font-size:16px; font-weight:500;">Consultation Details</h3>
                                     <div class="info-row"><span class="label">Date:</span> ${new Date(prescribedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
                                     <div class="info-row"><span class="label">Time:</span> ${new Date(prescribedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
-                                    <div class="info-row"><span class="label">Doctor:</span> ${prescribedBy}</div>
+                                    <div class="info-row"><span class="label">Staff:</span> ${prescribedBy}</div>
                                     <div class="info-row"><span class="label">Rx ID:</span> RX-${prescription.id}</div>
                                 </div>
                             </div>
@@ -3664,7 +3661,7 @@
                             <h3 style="margin-top:0;color:#333;">Report Details</h3>
                             <div class="info-row"><span class="label">Report Date:</span> ${escapeHtml(payload.reportDate)}</div>
                             <div class="info-row"><span class="label">Report Type:</span> ${escapeHtml(payload.reportType)}</div>
-                            <div class="info-row"><span class="label">Doctor:</span> ${escapeHtml(payload.doctorName)}</div>
+                            <div class="info-row"><span class="label">Staff:</span> ${escapeHtml(payload.doctorName)}</div>
                             <div class="info-row"><span class="label">Report ID:</span> ${escapeHtml(payload.reportNumber)}</div>
                         </div>
                     </div>`;
@@ -5069,7 +5066,7 @@
                                     className={`tab ${activeTab === 'prescriptions' ? 'active' : ''}`}
                                     onClick={() => setActiveTab('prescriptions')}
                                 >
-                                    Prescriptions
+                                    Treatment
                                 </button>
                                 <button
                                     className={`tab ${activeTab === 'prescription-mgmt' ? 'active' : ''}`}
