@@ -4,6 +4,7 @@ export type Patient = {
   age: number;
   gender: "Male" | "Female" | "Other";
   contact: string;
+  email?: string;
   address: string;
   id?: number;
   createdAt?: string;

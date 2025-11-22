@@ -158,6 +158,6 @@ window.HMISComponents.PatientList = ({ patients, onEdit, onDelete }) => {
 };
 
 // Export to window object for global access
-window.PatientList = PatientList;
+window.PatientList = window.HMISComponents.PatientList;
 
 console.log('PatientList component loaded successfully');

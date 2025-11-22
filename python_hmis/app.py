@@ -84,6 +84,31 @@ def serve_root_banner():
 def serve_root_logo():
     return send_from_directory(PROJECT_ROOT, "nhce_logo.png")
 
+
+@app.route("/<path:filename>")
+def serve_root_html(filename):
+    if filename.endswith(".html"):
+        return send_from_directory(PROJECT_ROOT, filename)
+    return ("Not Found", 404)
+
+# --- Static Asset Routes ---
+
+@app.route("/api/health")
+def health_check():
+    return jsonify({"status": "ok"})
+
+@app.route("/components/<path:filename>")
+def serve_components(filename):
+    return send_from_directory(os.path.join(PROJECT_ROOT, "components"), filename)
+
+@app.route("/css/<path:filename>")
+def serve_css(filename):
+    return send_from_directory(os.path.join(PROJECT_ROOT, "css"), filename)
+
+@app.route("/js/<path:filename>")
+def serve_js(filename):
+    return send_from_directory(os.path.join(PROJECT_ROOT, "js"), filename)
+
 # --- Database helpers ---
 
 from flask import g
