@@ -25,12 +25,68 @@ export type Vitals = {
 };
 
 export type Prescription = {
-  id?: number;
+  id?: number | string;
   usn: string;
-  notes: string;
+  patientName?: string;
+  patientAge?: number;
+  patientGender?: string;
+  diagnosis?: string;
+  medications?: any[];
+  notes?: string;
+  followUpDate?: string;
   prescribedAt: string; // ISO
+  prescribedAtIST?: string;
+  prescribedBy?: string;
+  createdAt?: number;
+  priority?: string;
+  status?: string;
   clinician?: string;
-  status?: "Active" | "Completed" | "Cancelled";
+};
+
+export type CaseReport = {
+  id?: string;
+  reportNumber: string;
+  usn: string;
+  patientName: string;
+  patientAge?: number;
+  patientGender?: string;
+  reportType: string;
+  chiefComplaint: string;
+  historyOfPresentIllness?: string;
+  pastMedicalHistory?: string;
+  familyHistory?: string;
+  socialHistory?: string;
+  physicalExamination?: string;
+  investigations?: string;
+  diagnosis: string;
+  treatment: string;
+  prognosis?: string;
+  recommendations?: string;
+  followUp?: string;
+  doctorName: string;
+  reportDate: string;
+  createdAt: string;
+  status: string;
+};
+
+export type SickIntimation = {
+  id?: string;
+  intimationNumber: string;
+  usn: string;
+  patientName: string;
+  patientAge?: number;
+  patientGender?: string;
+  caseReportId: string;
+  sickLeaveFrom: string;
+  sickLeaveTo: string;
+  totalDays: string;
+  reason: string;
+  symptoms?: string;
+  restRecommended: boolean;
+  doctorName: string;
+  issueDate: string;
+  createdAt: string;
+  status: string;
 };
 
 export type PrescriptionItem = {

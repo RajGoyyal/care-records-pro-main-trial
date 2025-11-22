@@ -1,4 +1,4 @@
-import { Patient, Prescription, Vitals, Appointment, LabOrder, Encounter } from "@/types/hmis";
+import { Patient, Prescription, Vitals, Appointment, LabOrder, Encounter, CaseReport, SickIntimation } from "@/types/hmis";
 
 const API_BASE_URL: string = (
   (typeof window !== 'undefined' && (window as any).BACKEND_BASE) ||
@@ -398,6 +398,122 @@ export const prescriptionApi = {
       throw new Error('Failed to generate prescription print');
     }
   },
+};
+
+// Case Reports API
+export const caseReportsApi = {
+  getByUsn: async (usn: string): Promise<CaseReport[]> => {
+    if (!apiAvailable) {
+      const allReports = getLocalStorageData<CaseReport[]>('caseReports', []);
+      return allReports.filter(r => r.usn === usn);
+    }
+    try {
+      return await apiRequest<CaseReport[]>(`/api/case-reports/${usn}`);
+    } catch {
+      const allReports = getLocalStorageData<CaseReport[]>('caseReports', []);
+      return allReports.filter(r => r.usn === usn);
+    }
+  },
+  
+  create: async (report: CaseReport): Promise<CaseReport> => {
+    if (!apiAvailable) {
+      const allReports = getLocalStorageData<CaseReport[]>('caseReports', []);
+      const newReport = { ...report, id: Date.now().toString() };
+      setLocalStorageData('caseReports', [...allReports, newReport]);
+      return newReport;
+    }
+    try {
+      const result = await apiRequest<CaseReport>('/api/case-reports', {
+        method: 'POST',
+        body: JSON.stringify(report),
+      });
+      const allReports = getLocalStorageData<CaseReport[]>('caseReports', []);
+      setLocalStorageData('caseReports', [...allReports, result]);
+      return result;
+    } catch (error) {
+      const allReports = getLocalStorageData<CaseReport[]>('caseReports', []);
+      const newReport = { ...report, id: Date.now().toString() };
+      setLocalStorageData('caseReports', [...allReports, newReport]);
+      throw error;
+    }
+  },
+
+  getAll: async (): Promise<CaseReport[]> => {
+      if (!apiAvailable) {
+          return getLocalStorageData<CaseReport[]>('caseReports', []);
+      }
+      try {
+          return await apiRequest<CaseReport[]>('/api/case-reports');
+      } catch {
+          return getLocalStorageData<CaseReport[]>('caseReports', []);
+      }
+  }
+};
+
+// Sick Intimations API
+export const sickIntimationsApi = {
+  getByUsn: async (usn: string): Promise<SickIntimation[]> => {
+    if (!apiAvailable) {
+      const allIntimations = getLocalStorageData<SickIntimation[]>('sickIntimations', []);
+      return allIntimations.filter(i => i.usn === usn);
+    }
+    try {
+      return await apiRequest<SickIntimation[]>(`/api/sick-intimations/${usn}`);
+    } catch {
+      const allIntimations = getLocalStorageData<SickIntimation[]>('sickIntimations', []);
+      return allIntimations.filter(i => i.usn === usn);
+    }
+  },
+  
+  create: async (intimation: SickIntimation): Promise<SickIntimation> => {
+    if (!apiAvailable) {
+      const allIntimations = getLocalStorageData<SickIntimation[]>('sickIntimations', []);
+      const newIntimation = { ...intimation, id: Date.now().toString() };
+      setLocalStorageData('sickIntimations', [...allIntimations, newIntimation]);
+      return newIntimation;
+    }
+    try {
+      const result = await apiRequest<SickIntimation>('/api/sick-intimations', {
+        method: 'POST',
+        body: JSON.stringify(intimation),
+      });
+      const allIntimations = getLocalStorageData<SickIntimation[]>('sickIntimations', []);
+      setLocalStorageData('sickIntimations', [...allIntimations, result]);
+      return result;
+    } catch (error) {
+      const allIntimations = getLocalStorageData<SickIntimation[]>('sickIntimations', []);
+      const newIntimation = { ...intimation, id: Date.now().toString() };
+      setLocalStorageData('sickIntimations', [...allIntimations, newIntimation]);
+      throw error;
+    }
+  },
+
+  getAll: async (): Promise<SickIntimation[]> => {
+      if (!apiAvailable) {
+          return getLocalStorageData<SickIntimation[]>('sickIntimations', []);
+      }
+      try {
+          return await apiRequest<SickIntimation[]>('/api/sick-intimations');
+      } catch {
+          return getLocalStorageData<SickIntimation[]>('sickIntimations', []);
+      }
+  }
+};
+
+// Export API
+export const exportApi = {
+    exportData: async (endpoint: string): Promise<Blob | null> => {
+        if (!apiAvailable) return null;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/export/${endpoint}`);
+            if (response.ok) {
+                return await response.blob();
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    }
 };
 
 // Initialize API health check

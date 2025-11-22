@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { patientApi } from '@/services/api';
 import { Patient } from '@/types/hmis';
 
@@ -9,6 +10,7 @@ import { Patient } from '@/types/hmis';
 const LOGO_URL = '/nhce_logo.png'; // Updated to match what was seen in HTML files
 
 const PatientList = () => {
+    const navigate = useNavigate();
     const [patients, setPatients] = useState<Patient[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -41,9 +43,7 @@ const PatientList = () => {
     };
 
     const handleEdit = (patient: Patient) => {
-        // Placeholder for edit functionality
-        console.log("Edit patient", patient);
-        alert(`Edit functionality for ${patient.fullName} to be implemented`);
+        navigate('/register-patient', { state: { patient } });
     };
 
     const printPatient = (patient: Patient) => {
@@ -142,13 +142,21 @@ const PatientList = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-gray-800">Patient List</h2>
-                    <input
-                        type="text"
-                        placeholder="Search patients..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="form-input w-64 px-3 py-2 border rounded-lg"
-                    />
+                    <div className="flex gap-3 items-center">
+                        <input
+                            type="text"
+                            placeholder="Search patients..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="form-input w-64 px-3 py-2 border rounded-lg"
+                        />
+                        <button
+                            onClick={() => navigate('/register-patient')}
+                            className="btn btn-primary whitespace-nowrap"
+                        >
+                            + Register Patient
+                        </button>
+                    </div>
                 </div>
 
                 {filteredPatients.length === 0 ? (
