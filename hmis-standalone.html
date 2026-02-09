@@ -270,16 +270,18 @@
                 const offlinePrescriptions = loadFromStorage('prescriptions', []);
                 const offlineCaseReports = loadFromStorage('caseReports', []);
                 const offlineSickIntimations = loadFromStorage('sickIntimations', []);
+                const offlineTreatmentRefusals = loadFromStorage('treatmentRefusals', []);
 
                 // Create backup before sync
                 if (offlinePatients.length > 0 || offlineVitals.length > 0 || offlinePrescriptions.length > 0 || 
-                    offlineCaseReports.length > 0 || offlineSickIntimations.length > 0) {
+                    offlineCaseReports.length > 0 || offlineSickIntimations.length > 0 || offlineTreatmentRefusals.length > 0) {
                     console.log('Creating backup of offline data...');
                     saveToStorage('backup_patients', offlinePatients);
                     saveToStorage('backup_vitals', offlineVitals);
                     saveToStorage('backup_prescriptions', offlinePrescriptions);
                     saveToStorage('backup_caseReports', offlineCaseReports);
                     saveToStorage('backup_sickIntimations', offlineSickIntimations);
+                    saveToStorage('backup_treatmentRefusals', offlineTreatmentRefusals);
                     saveToStorage('backup_timestamp', new Date().toISOString());
                 }
 
@@ -288,7 +290,8 @@
                     vitals: { synced: 0, total: 0 },
                     prescriptions: { synced: 0, total: 0 },
                     caseReports: { synced: 0, total: 0 },
-                    sickIntimations: { synced: 0, total: 0 }
+                    sickIntimations: { synced: 0, total: 0 },
+                    treatmentRefusals: { synced: 0, total: 0 }
                 };
 
                 // Bulk sync patients
@@ -466,14 +469,43 @@
                     }
                 }
 
+                // Bulk sync treatment refusals
+                if (offlineTreatmentRefusals.length > 0) {
+                    try {
+                        const result = await apiRequest('/api/sync/treatment-refusals', {
+                            method: 'POST',
+                            body: JSON.stringify(offlineTreatmentRefusals)
+                        });
+                        syncResults.treatmentRefusals = {
+                            synced: result.synced_count,
+                            total: result.total_received
+                        };
+                        console.log(`Bulk synced ${result.synced_count}/${result.total_received} treatment refusals`);
+                    } catch (error) {
+                        console.warn('Failed to bulk sync treatment refusals:', error);
+                        for (const refusal of offlineTreatmentRefusals) {
+                            try {
+                                await apiRequest('/api/treatment-refusals', {
+                                    method: 'POST',
+                                    body: JSON.stringify(refusal)
+                                });
+                                syncResults.treatmentRefusals.synced++;
+                            } catch (err) {
+                                console.warn(`Failed to sync treatment refusal ${refusal.refusalNumber}:`, err);
+                            }
+                        }
+                        syncResults.treatmentRefusals.total = offlineTreatmentRefusals.length;
+                    }
+                }
+
                 console.log('Offline data sync completed!', syncResults);
                 
                 // Only update sync timestamp if data was actually synced
                 if (syncResults.patients.synced > 0 || syncResults.vitals.synced > 0 || syncResults.prescriptions.synced > 0 ||
-                    syncResults.caseReports.synced > 0 || syncResults.sickIntimations.synced > 0) {
+                    syncResults.caseReports.synced > 0 || syncResults.sickIntimations.synced > 0 || syncResults.treatmentRefusals.synced > 0) {
                     localStorage.setItem('lastSyncTime', new Date().toISOString());
                     localStorage.removeItem('needsSync');
-                    console.log(`✅ Sync Complete: ${syncResults.patients.synced} patients, ${syncResults.vitals.synced} vitals, ${syncResults.prescriptions.synced} prescriptions, ${syncResults.caseReports.synced} case reports, ${syncResults.sickIntimations.synced} sick intimations synced to server`);
+                    console.log(`✅ Sync Complete: ${syncResults.patients.synced} patients, ${syncResults.vitals.synced} vitals, ${syncResults.prescriptions.synced} prescriptions, ${syncResults.caseReports.synced} case reports, ${syncResults.sickIntimations.synced} sick intimations, ${syncResults.treatmentRefusals.synced} treatment refusals synced to server`);
                 } else {
                     console.log('No new data to sync');
                 }
@@ -658,16 +690,18 @@
                 const backupPrescriptions = loadFromStorage('backup_prescriptions', []);
                 const backupCaseReports = loadFromStorage('backup_caseReports', []);
                 const backupSickIntimations = loadFromStorage('backup_sickIntimations', []);
+                const backupTreatmentRefusals = loadFromStorage('backup_treatmentRefusals', []);
                 const backupTimestamp = localStorage.getItem('backup_timestamp');
                 
                 if (backupPatients.length > 0 || backupVitals.length > 0 || backupPrescriptions.length > 0 || 
-                    backupCaseReports.length > 0 || backupSickIntimations.length > 0) {
+                    backupCaseReports.length > 0 || backupSickIntimations.length > 0 || backupTreatmentRefusals.length > 0) {
                     console.log(`Restoring backup data from ${backupTimestamp}...`);
                     saveToStorage('patients', backupPatients);
                     saveToStorage('vitals', backupVitals);
                     saveToStorage('prescriptions', backupPrescriptions);
                     saveToStorage('caseReports', backupCaseReports);
                     saveToStorage('sickIntimations', backupSickIntimations);
+                    saveToStorage('treatmentRefusals', backupTreatmentRefusals);
                     
                     // Clear backup after restoration
                     localStorage.removeItem('backup_patients');
@@ -675,6 +709,7 @@
                     localStorage.removeItem('backup_prescriptions');
                     localStorage.removeItem('backup_caseReports');
                     localStorage.removeItem('backup_sickIntimations');
+                    localStorage.removeItem('backup_treatmentRefusals');
                     localStorage.removeItem('backup_timestamp');
                     
                     return { 
@@ -682,7 +717,8 @@
                         vitals: backupVitals, 
                         prescriptions: backupPrescriptions,
                         caseReports: backupCaseReports,
-                        sickIntimations: backupSickIntimations
+                        sickIntimations: backupSickIntimations,
+                        treatmentRefusals: backupTreatmentRefusals
                     };
                 }
             } catch (error) {
@@ -692,7 +728,7 @@
         };
 
         // Enhanced Dashboard Component with Medical Analytics
-        const Dashboard = ({ patients, vitals, prescriptions, caseReports, sickIntimations, setActiveTab }) => {
+        const Dashboard = ({ patients, vitals, prescriptions, caseReports, sickIntimations, treatmentRefusals, setActiveTab }) => {
             const [selectedTimeframe, setSelectedTimeframe] = useState('week');
             const [showAlerts, setShowAlerts] = useState(true);
             const [currentTime, setCurrentTime] = useState(new Date());
@@ -728,6 +764,7 @@
             const safePrescriptions = prescriptions || [];
             const safeCaseReports = caseReports || [];
             const safeSickIntimations = sickIntimations || [];
+            const safeTreatmentRefusals = treatmentRefusals || [];
             
             // Time calculations
             const now = new Date();
@@ -763,7 +800,8 @@
                 recentVitals: safeVitals.filter(v => new Date(v.recordedAt) > timeframeDate).length,
                 recentPrescriptions: safePrescriptions.filter(p => new Date(p.prescribedAt) > timeframeDate).length,
                 recentCaseReports: safeCaseReports.filter(c => new Date(c.reportDate) > timeframeDate).length,
-                recentSickLeaves: safeSickIntimations.filter(s => new Date(s.intimationDate) > timeframeDate).length,
+                recentSickLeaves: safeSickIntimations.filter(s => new Date(s.intimationDate || s.issueDate || s.createdAt) > timeframeDate).length,
+                recentTreatmentRefusals: safeTreatmentRefusals.filter(r => new Date(r.refusalDate || r.createdAt) > timeframeDate).length,
                 
                 // Health indicators
                 highBPCount: safeVitals.filter(v => {
@@ -793,7 +831,10 @@
                     const nextWeek = new Date();
                     nextWeek.setDate(nextWeek.getDate() + 7);
                     return followUp <= nextWeek && followUp >= now;
-                }).length
+                }).length,
+
+                // Consent tracking
+                totalTreatmentRefusals: safeTreatmentRefusals.length
             };
             
             // Alerts and notifications
@@ -812,6 +853,11 @@
                     type: 'info',
                     message: `${stats.upcomingFollowUps} follow-up${stats.upcomingFollowUps > 1 ? 's' : ''} scheduled this week`,
                     action: 'View Schedule'
+                }] : []),
+                ...(stats.recentTreatmentRefusals > 0 ? [{
+                    type: 'info',
+                    message: `${stats.recentTreatmentRefusals} new treatment refusal${stats.recentTreatmentRefusals > 1 ? 's' : ''} recorded`,
+                    action: 'View Consent'
                 }] : []),
                 ...(stats.highBPCount > 0 ? [{
                     type: 'warning',
@@ -1130,6 +1176,7 @@
                     </div>
 
                     {/* Interactive Charts Row 1 */}
+
                     <div className="grid gap-6 md:grid-cols-2">
                         <div className="card relative">
                             <h3 className="text-sm font-semibold mb-2 text-gray-700">Patient Gender Distribution</h3>
@@ -1192,6 +1239,7 @@
                                             if(alert.action === 'View Schedule') setActiveTab('schedule');
                                             else if(alert.action === 'View Treatment' || alert.action === 'Review Urgent Cases') setActiveTab('prescriptions');
                                             else if(alert.action === 'Review Vitals') setActiveTab('vitals');
+                                            else if(alert.action === 'View Consent') setActiveTab('case-report');
                                         }}>
                                             {alert.action}
                                         </span>
@@ -1222,6 +1270,11 @@
                             <div className="stat-number" style={{color: 'white'}}>{stats.averageAge}</div>
                             <div className="stat-label" style={{color: 'white'}}>Average Age</div>
                             <div className="text-xs" style={{color: 'rgba(255,255,255,0.8)'}}>🎂 Years</div>
+                        </div>
+                        <div className="stat-card" style={{background: '#3b82f6', color: 'white'}}>
+                            <div className="stat-number" style={{color: 'white'}}>{stats.totalTreatmentRefusals}</div>
+                            <div className="stat-label" style={{color: 'white'}}>Treatment Refusals</div>
+                            <div className="text-xs" style={{color: 'rgba(255,255,255,0.8)'}}>🚫 Recorded</div>
                         </div>
                     </div>
 
@@ -1298,6 +1351,10 @@
                                 <div className="flex justify-between items-center">
                                     <span>🏥 Sick Leaves</span>
                                     <span className="badge badge-orange">{stats.recentSickLeaves}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>🚫 Treatment Refusals</span>
+                                    <span className="badge badge-gray">{stats.recentTreatmentRefusals}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span>📅 Follow-ups Due</span>
@@ -3294,7 +3351,7 @@
         };
 
         // Case Report Management Component
-        const CaseReportManagement = ({ patients, caseReports, setCaseReports, sickIntimations, setSickIntimations }) => {
+        const CaseReportManagement = ({ patients, caseReports, setCaseReports, sickIntimations, setSickIntimations, treatmentRefusals, setTreatmentRefusals }) => {
             const [subTab, setSubTab] = useState('case-report');
             const [formData, setFormData] = useState({
                 usn: '',
@@ -3326,17 +3383,56 @@
                 issueDate: new Date().toISOString().split('T')[0],
                 caseReportId: '' // Link to case report
             });
+            const CONSENT_TERMS_TEMPLATE = [
+                'I have been informed of the recommended treatment, the purpose of care, and the expected benefits.',
+                'The potential risks and consequences of refusing or delaying the treatment have been explained to me.',
+                'I understand that I may change my decision at any time and may request treatment later.',
+                'By signing below, I accept the risks associated with refusing the proposed care and release the clinic team from any resulting liability to the extent permitted by law.'
+            ].join(' ');
+
+            const [refusalFormData, setRefusalFormData] = useState({
+                usn: '',
+                refusalDate: new Date().toISOString().split('T')[0],
+                reason: '',
+                risksExplained: '',
+                severityLevel: 'moderate',
+                location: '',
+                counsellingSummary: '',
+                counsellingChecklist: [],
+                followUpRequired: false,
+                followUpDate: '',
+                followUpActions: '',
+                witnessName: '',
+                witnessContact: '',
+                additionalWitnesses: [],
+                notes: '',
+                doctorName: 'Mr. Manoj VRC Swami NH-1581',
+                caseReportId: '',
+                consentAcknowledged: false,
+                consentSignedName: '',
+                consentSignedUsn: '',
+                consentTerms: CONSENT_TERMS_TEMPLATE,
+                doctorRemarks: '',
+                additionalIdentifiers: [],
+                attachments: [],
+                institutionIdentifier: '',
+                externalReference: '',
+                searchTerm: ''
+            });
             const [errors, setErrors] = useState({});
             const [selectedPatientDetails, setSelectedPatientDetails] = useState(null);
             // Unified search states
             const [caseSearchTerm, setCaseSearchTerm] = useState('');
             const [sickSearchTerm, setSickSearchTerm] = useState('');
+            const [refusalSearchTerm, setRefusalSearchTerm] = useState('');
             const [showCasePatientDropdown, setShowCasePatientDropdown] = useState(false);
             const [showSickPatientDropdown, setShowSickPatientDropdown] = useState(false);
+            const [showRefusalPatientDropdown, setShowRefusalPatientDropdown] = useState(false);
 
             const safePatients = patients || [];
             const safeCaseReports = caseReports || [];
             const safeSickIntimations = sickIntimations || [];
+            const safeTreatmentRefusals = treatmentRefusals || [];
 
             // Generate unique IDs for reports
             const generateCaseReportNumber = () => {
@@ -3352,8 +3448,16 @@
                 return `SI-${new Date().getFullYear()}-${baseNumber}-${random}`;
             };
 
+            const generateTreatmentRefusalNumber = (caseReportNumber) => {
+                const timestamp = Date.now();
+                const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                const baseNumber = caseReportNumber ? caseReportNumber.split('-').slice(-2).join('') : timestamp.toString().slice(-6);
+                return `RT-${new Date().getFullYear()}-${baseNumber}-${random}`;
+            };
+
             const [currentCaseReportNumber, setCurrentCaseReportNumber] = useState('');
             const [currentSickIntimationNumber, setCurrentSickIntimationNumber] = useState('');
+            const [currentTreatmentRefusalNumber, setCurrentTreatmentRefusalNumber] = useState('');
 
             const handlePatientSelect = (e, formType = 'case') => {
                 const usn = e.target.value;
@@ -3362,7 +3466,7 @@
                 
                 if (formType === 'case') {
                     setFormData(prev => ({ ...prev, usn }));
-                } else {
+                } else if (formType === 'sick') {
                     setSickFormData(prev => ({ ...prev, usn }));
                     
                     // Auto-populate case report ID from latest case report for this patient
@@ -3370,6 +3474,14 @@
                     if (patientCaseReports.length > 0) {
                         const latestCaseReport = patientCaseReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
                         setSickFormData(prev => ({ ...prev, caseReportId: latestCaseReport.reportNumber }));
+                    }
+                } else if (formType === 'refusal') {
+                    setRefusalFormData(prev => ({ ...prev, usn }));
+
+                    const patientCaseReports = safeCaseReports.filter(cr => cr.usn === usn);
+                    if (patientCaseReports.length > 0) {
+                        const latestCaseReport = patientCaseReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+                        setRefusalFormData(prev => ({ ...prev, caseReportId: latestCaseReport.reportNumber }));
                     }
                 }
             };
@@ -3384,6 +3496,12 @@
             const filteredSickPatients = sickSearchTerm
                 ? safePatients.filter(p => {
                     const t = sickSearchTerm.toLowerCase();
+                    return p.usn.toLowerCase().includes(t) || p.fullName.toLowerCase().includes(t);
+                })
+                : safePatients;
+            const filteredRefusalPatients = refusalSearchTerm
+                ? safePatients.filter(p => {
+                    const t = refusalSearchTerm.toLowerCase();
                     return p.usn.toLowerCase().includes(t) || p.fullName.toLowerCase().includes(t);
                 })
                 : safePatients;
@@ -3406,11 +3524,186 @@
                 }
                 setShowSickPatientDropdown(false);
             };
+            const selectRefusalPatient = (patient) => {
+                setRefusalFormData(prev => ({ ...prev, usn: patient.usn }));
+                setSelectedPatientDetails(patient);
+                setRefusalSearchTerm(`${patient.usn} - ${patient.fullName}`);
+                const patientCaseReports = safeCaseReports.filter(cr => cr.usn === patient.usn);
+                if (patientCaseReports.length > 0) {
+                    const latestCaseReport = patientCaseReports.sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))[0];
+                    setRefusalFormData(prev => ({ ...prev, caseReportId: latestCaseReport.reportNumber }));
+                }
+                setShowRefusalPatientDropdown(false);
+            };
+
+            const counsellingOptions = [
+                'Explained recommended treatment plan',
+                'Discussed alternative options',
+                'Outlined potential risks and complications',
+                'Addressed patient questions and concerns',
+                'Offered follow-up support or resources'
+            ];
+
+            const toggleCounsellingOption = (option) => {
+                setRefusalFormData(prev => {
+                    const alreadySelected = prev.counsellingChecklist.includes(option);
+                    const updated = alreadySelected
+                        ? prev.counsellingChecklist.filter(item => item !== option)
+                        : [...prev.counsellingChecklist, option];
+                    return { ...prev, counsellingChecklist: updated };
+                });
+            };
+
+            const addAdditionalWitness = () => {
+                setRefusalFormData(prev => ({
+                    ...prev,
+                    additionalWitnesses: [...(prev.additionalWitnesses || []), { name: '', relation: '', contact: '' }]
+                }));
+            };
+
+            const updateAdditionalWitness = (index, field, value) => {
+                setRefusalFormData(prev => {
+                    const list = [...(prev.additionalWitnesses || [])];
+                    if (!list[index]) return prev;
+                    list[index] = { ...list[index], [field]: value };
+                    return { ...prev, additionalWitnesses: list };
+                });
+            };
+
+            const removeAdditionalWitness = (index) => {
+                setRefusalFormData(prev => ({
+                    ...prev,
+                    additionalWitnesses: (prev.additionalWitnesses || []).filter((_, i) => i !== index)
+                }));
+            };
+
+            const addAdditionalIdentifier = () => {
+                setRefusalFormData(prev => ({
+                    ...prev,
+                    additionalIdentifiers: [...(prev.additionalIdentifiers || []), { type: '', value: '' }]
+                }));
+            };
+
+            const updateAdditionalIdentifier = (index, field, value) => {
+                setRefusalFormData(prev => {
+                    const list = [...(prev.additionalIdentifiers || [])];
+                    if (!list[index]) return prev;
+                    list[index] = { ...list[index], [field]: value };
+                    return { ...prev, additionalIdentifiers: list };
+                });
+            };
+
+            const removeAdditionalIdentifier = (index) => {
+                setRefusalFormData(prev => ({
+                    ...prev,
+                    additionalIdentifiers: (prev.additionalIdentifiers || []).filter((_, i) => i !== index)
+                }));
+            };
+
+            const addAttachment = () => {
+                setRefusalFormData(prev => ({
+                    ...prev,
+                    attachments: [...(prev.attachments || []), { description: '', reference: '' }]
+                }));
+            };
+
+            const updateAttachment = (index, field, value) => {
+                setRefusalFormData(prev => {
+                    const list = [...(prev.attachments || [])];
+                    if (!list[index]) return prev;
+                    list[index] = { ...list[index], [field]: value };
+                    return { ...prev, attachments: list };
+                });
+            };
+
+            const removeAttachment = (index) => {
+                setRefusalFormData(prev => ({
+                    ...prev,
+                    attachments: (prev.attachments || []).filter((_, i) => i !== index)
+                }));
+            };
+
+            const toBoolean = (value) => value === true || value === 1 || value === '1' || value === 'true';
+
+            const parseArrayField = (value) => {
+                if (!value && value !== 0) return [];
+                if (Array.isArray(value)) return value;
+                if (typeof value === 'string' && value.trim() === '') return [];
+                try {
+                    const parsed = JSON.parse(value);
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    return [];
+                }
+            };
+
+            const normalizeRefusalRecord = (record = {}) => {
+                if (!record || typeof record !== 'object') return {};
+
+                const checklist = parseArrayField(record.counsellingChecklist || record.counsellingSteps);
+                const additionalWitnesses = parseArrayField(record.additionalWitnesses).map(w => ({
+                    name: w?.name || '',
+                    relation: w?.relation || '',
+                    contact: w?.contact || ''
+                }));
+                const additionalIdentifiers = parseArrayField(record.additionalIdentifiers).map(i => ({
+                    type: i?.type || '',
+                    value: i?.value || ''
+                }));
+                const attachments = parseArrayField(record.attachments).map(a => ({
+                    description: a?.description || '',
+                    reference: a?.reference || ''
+                }));
+
+                let summary = record.counsellingSummary || '';
+                if (!summary && checklist.length > 0) {
+                    summary = `Checklist: ${checklist.join('; ')}`;
+                }
+
+                return {
+                    ...record,
+                    severityLevel: record.severityLevel || 'moderate',
+                    location: record.location || '',
+                    counsellingSummary: summary,
+                    counsellingChecklist: checklist,
+                    followUpRequired: toBoolean(record.followUpRequired),
+                    followUpDate: record.followUpDate || '',
+                    followUpActions: record.followUpActions || '',
+                    witnessName: record.witnessName || '',
+                    witnessContact: record.witnessContact || '',
+                    additionalWitnesses,
+                    notes: record.notes || '',
+                    doctorRemarks: record.doctorRemarks || '',
+                    consentAcknowledged: toBoolean(record.consentAcknowledged),
+                    consentSignedName: record.consentSignedName || '',
+                    consentSignedUsn: record.consentSignedUsn || '',
+                    consentTerms: record.consentTerms || CONSENT_TERMS_TEMPLATE,
+                    additionalIdentifiers,
+                    attachments,
+                    institutionIdentifier: record.institutionIdentifier || '',
+                    externalReference: record.externalReference || ''
+                };
+            };
+
+            const normalizedTreatmentRefusals = (safeTreatmentRefusals || []).map(normalizeRefusalRecord);
+
+            const severityBadgeClass = {
+                low: 'bg-green-100 text-green-700',
+                moderate: 'bg-yellow-100 text-yellow-700',
+                high: 'bg-orange-100 text-orange-700',
+                critical: 'bg-red-100 text-red-700'
+            };
+
+            const formatSeverityLabel = (value = 'moderate') => {
+                const label = (value || 'moderate').toString();
+                return label.charAt(0).toUpperCase() + label.slice(1);
+            };
 
             useEffect(() => {
                 const onDocClick = (e) => {
                     if (!e.target.closest('.case-patient-search')) setShowCasePatientDropdown(false);
                     if (!e.target.closest('.sick-patient-search')) setShowSickPatientDropdown(false);
+                    if (!e.target.closest('.refusal-patient-search')) setShowRefusalPatientDropdown(false);
                 };
                 document.addEventListener('click', onDocClick);
                 return () => document.removeEventListener('click', onDocClick);
@@ -3607,6 +3900,171 @@
                     issueDate: new Date().toISOString().split('T')[0],
                     caseReportId: ''
                 });
+                setSelectedPatientDetails(null);
+            };
+
+            const handleTreatmentRefusalSubmit = async () => {
+                if (!refusalFormData.usn || !refusalFormData.reason || !refusalFormData.refusalDate) {
+                    alert('Please fill all required fields');
+                    return;
+                }
+
+                if (refusalFormData.followUpRequired && !refusalFormData.followUpDate) {
+                    alert('Please specify a follow-up date for the required follow-up.');
+                    return;
+                }
+
+                if (!refusalFormData.consentAcknowledged) {
+                    alert('Please acknowledge the consent and declaration before saving.');
+                    return;
+                }
+
+                const patientCaseReports = safeCaseReports.filter(cr => cr.usn === refusalFormData.usn);
+                const linkedCaseReport = refusalFormData.caseReportId || (patientCaseReports[0]?.reportNumber || '');
+
+                const refusalNumber = generateTreatmentRefusalNumber(linkedCaseReport);
+                setCurrentTreatmentRefusalNumber(refusalNumber);
+
+                const counsellingSummaryText = [
+                    (refusalFormData.counsellingSummary || '').trim(),
+                    refusalFormData.counsellingChecklist.length > 0
+                        ? `Checklist: ${refusalFormData.counsellingChecklist.join('; ')}`
+                        : ''
+                ].filter(Boolean).join('\n');
+
+                const additionalWitnesses = (refusalFormData.additionalWitnesses || [])
+                    .map(w => ({
+                        name: (w.name || '').trim(),
+                        relation: (w.relation || '').trim(),
+                        contact: (w.contact || '').trim()
+                    }))
+                    .filter(w => w.name || w.relation || w.contact);
+
+                const additionalIdentifiers = (refusalFormData.additionalIdentifiers || [])
+                    .map(i => ({
+                        type: (i.type || '').trim(),
+                        value: (i.value || '').trim()
+                    }))
+                    .filter(i => i.type || i.value);
+
+                const attachments = (refusalFormData.attachments || [])
+                    .map(a => ({
+                        description: (a.description || '').trim(),
+                        reference: (a.reference || '').trim()
+                    }))
+                    .filter(a => a.description || a.reference);
+
+                const refusalRecord = {
+                    id: Date.now().toString(),
+                    refusalNumber,
+                    usn: refusalFormData.usn,
+                    patientName: selectedPatientDetails?.fullName || '',
+                    patientAge: selectedPatientDetails?.age || '',
+                    patientGender: selectedPatientDetails?.gender || '',
+                    caseReportId: linkedCaseReport,
+                    refusalDate: refusalFormData.refusalDate,
+                    reason: refusalFormData.reason,
+                    risksExplained: refusalFormData.risksExplained,
+                    severityLevel: refusalFormData.severityLevel,
+                    location: refusalFormData.location,
+                    counsellingSummary: counsellingSummaryText,
+                    counsellingChecklist: [...refusalFormData.counsellingChecklist],
+                    followUpRequired: refusalFormData.followUpRequired,
+                    followUpDate: refusalFormData.followUpDate,
+                    followUpActions: refusalFormData.followUpActions,
+                    witnessName: refusalFormData.witnessName,
+                    witnessContact: refusalFormData.witnessContact,
+                    additionalWitnesses,
+                    notes: refusalFormData.notes,
+                    doctorRemarks: refusalFormData.doctorRemarks,
+                    doctorName: refusalFormData.doctorName,
+                    consentAcknowledged: refusalFormData.consentAcknowledged,
+                    consentSignedName: refusalFormData.consentSignedName,
+                    consentSignedUsn: refusalFormData.consentSignedUsn,
+                    consentTerms: refusalFormData.consentTerms,
+                    additionalIdentifiers,
+                    attachments,
+                    institutionIdentifier: refusalFormData.institutionIdentifier,
+                    externalReference: refusalFormData.externalReference,
+                    createdAt: new Date().toISOString(),
+                    status: 'Active'
+                };
+
+                const newRefusals = [...safeTreatmentRefusals, refusalRecord];
+                setTreatmentRefusals(newRefusals);
+                saveToStorage('treatmentRefusals', newRefusals);
+
+                const syncPayload = {
+                    refusalNumber,
+                    usn: refusalFormData.usn,
+                    patientName: selectedPatientDetails?.fullName || '',
+                    patientAge: selectedPatientDetails?.age || '',
+                    patientGender: selectedPatientDetails?.gender || '',
+                    caseReportId: linkedCaseReport || null,
+                    refusalDate: refusalFormData.refusalDate,
+                    reason: refusalFormData.reason,
+                    risksExplained: refusalFormData.risksExplained,
+                    severityLevel: refusalFormData.severityLevel,
+                    counsellingSummary: counsellingSummaryText,
+                    counsellingSteps: refusalFormData.counsellingChecklist,
+                    followUpRequired: refusalFormData.followUpRequired,
+                    followUpDate: refusalFormData.followUpDate,
+                    followUpActions: refusalFormData.followUpActions,
+                    witnessName: refusalFormData.witnessName,
+                    witnessContact: refusalFormData.witnessContact,
+                    additionalWitnesses,
+                    notes: refusalFormData.notes,
+                    doctorRemarks: refusalFormData.doctorRemarks,
+                    doctorName: refusalFormData.doctorName,
+                    consentAcknowledged: refusalFormData.consentAcknowledged,
+                    consentSignedName: refusalFormData.consentSignedName,
+                    consentSignedUsn: refusalFormData.consentSignedUsn,
+                    consentTerms: refusalFormData.consentTerms,
+                    additionalIdentifiers,
+                    attachments,
+                    institutionIdentifier: refusalFormData.institutionIdentifier,
+                    externalReference: refusalFormData.externalReference,
+                    location: refusalFormData.location
+                };
+
+                const syncResult = await syncWithDatabase('treatment-refusals', syncPayload);
+
+                if (syncResult) {
+                    alert(`Treatment Refusal ${refusalNumber} recorded and synced to database successfully!`);
+                } else {
+                    alert(`Treatment Refusal ${refusalNumber} recorded locally. Will sync to database when server is available.`);
+                }
+
+                setRefusalFormData({
+                    usn: '',
+                    refusalDate: new Date().toISOString().split('T')[0],
+                    reason: '',
+                    risksExplained: '',
+                    severityLevel: 'moderate',
+                    location: '',
+                    counsellingSummary: '',
+                    counsellingChecklist: [],
+                    followUpRequired: false,
+                    followUpDate: '',
+                    followUpActions: '',
+                    witnessName: '',
+                    witnessContact: '',
+                    additionalWitnesses: [],
+                    notes: '',
+                    doctorRemarks: '',
+                    doctorName: 'Mr. Manoj VRC Swami NH-1581',
+                    caseReportId: '',
+                    consentAcknowledged: false,
+                    consentSignedName: '',
+                    consentSignedUsn: '',
+                    consentTerms: CONSENT_TERMS_TEMPLATE,
+                    additionalIdentifiers: [],
+                    attachments: [],
+                    institutionIdentifier: '',
+                    externalReference: '',
+                    searchTerm: ''
+                });
+                setRefusalSearchTerm('');
                 setSelectedPatientDetails(null);
             };
 
@@ -4220,6 +4678,249 @@
                 setTimeout(() => { printWindow.print(); }, 500);
             };
 
+            const printTreatmentRefusalFromRecord = (refusal) => {
+                const normalized = normalizeRefusalRecord(refusal);
+                const printWindow = window.open('', '_blank');
+                const logoUrl = new URL('./nhce_25-scaled-1-2048x683.png', window.location.href).href;
+                const now = new Date();
+                const generatedDate = now.toLocaleDateString();
+                const generatedTime = now.toLocaleTimeString();
+
+                const escapeValue = (value) => {
+                    if (value === null || value === undefined) return '';
+                    return String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+                };
+
+                const formatMultiline = (value) => {
+                    const safe = escapeValue(value || '');
+                    return safe.replace(/\n/g, '<br />');
+                };
+
+                const formatDate = (value, fallback = '') => {
+                    if (!value) return fallback;
+                    const parsed = new Date(value);
+                    if (Number.isNaN(parsed.getTime())) {
+                        return escapeValue(value);
+                    }
+                    return parsed.toLocaleDateString();
+                };
+
+                const checklistHtml = normalized.counsellingChecklist.length
+                    ? `<ul class="list">${normalized.counsellingChecklist.map(item => `<li>${escapeValue(item)}</li>`).join('')}</ul>`
+                    : '<p class="muted">No checklist items recorded.</p>';
+
+                const additionalWitnessesHtml = normalized.additionalWitnesses.length
+                    ? `<ul class="list">${normalized.additionalWitnesses.map((item, idx) => {
+                        const parts = [item.name, item.relation, item.contact].filter(Boolean).map(escapeValue);
+                        return `<li><strong>Witness ${idx + 1}:</strong> ${parts.join(' · ') || 'Details not specified'}</li>`;
+                    }).join('')}</ul>`
+                    : '<p class="muted">No additional witnesses recorded.</p>';
+
+                const identifiersHtml = normalized.additionalIdentifiers.length
+                    ? `<ul class="list">${normalized.additionalIdentifiers.map((item, idx) => {
+                        const type = escapeValue(item.type || `Identifier ${idx + 1}`);
+                        const value = escapeValue(item.value || 'Not specified');
+                        return `<li><strong>${type}:</strong> ${value}</li>`;
+                    }).join('')}</ul>`
+                    : '<p class="muted">No supplementary identifiers captured.</p>';
+
+                const attachmentsHtml = normalized.attachments.length
+                    ? `<ul class="list">${normalized.attachments.map((item, idx) => {
+                        const label = escapeValue(item.description || `Attachment ${idx + 1}`);
+                        const ref = escapeValue(item.reference || 'Reference not provided');
+                        return `<li><strong>${label}:</strong> ${ref}</li>`;
+                    }).join('')}</ul>`
+                    : '<p class="muted">No attachments or evidence recorded.</p>';
+
+                const followUpHtml = normalized.followUpRequired
+                    ? `<div class="notes">
+                            <div><span class="label">Follow-up Scheduled:</span> ${formatDate(normalized.followUpDate, 'Awaiting schedule')}</div>
+                            ${normalized.followUpActions ? `<div style="margin-top:8px;"><span class="label">Planned Actions:</span><br/>${formatMultiline(normalized.followUpActions)}</div>` : ''}
+                       </div>`
+                    : '<p class="muted">Follow-up not required for this refusal.</p>';
+
+                const consentBadge = normalized.consentAcknowledged
+                    ? '<span class="badge" style="background:#dcfce7;color:#166534;">Acknowledged</span>'
+                    : '<span class="badge" style="background:#fee2e2;color:#b91c1c;">Pending Acknowledgement</span>';
+
+                const severityColors = {
+                    low: { bg: '#dcfce7', text: '#166534' },
+                    moderate: { bg: '#fef3c7', text: '#92400e' },
+                    high: { bg: '#fde68a', text: '#b45309' },
+                    critical: { bg: '#fee2e2', text: '#b91c1c' }
+                };
+                const severityStyle = severityColors[normalized.severityLevel] || severityColors.moderate;
+                const severityBadge = `<span class="badge" style="background:${severityStyle.bg};color:${severityStyle.text};">${formatSeverityLabel(normalized.severityLevel)}</span>`;
+
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Treatment Refusal - ${escapeValue(normalized.patientName || '')}</title>
+                        <style>
+                            @media print {
+                                @page { margin: 0.5in; size: A4; }
+                                body { margin:0; }
+                                .no-print { display:none; }
+                                img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                            }
+                            body { font-family: Arial, sans-serif; max-width: 820px; margin: 0 auto; padding: 20px; color: #111827; line-height: 1.5; }
+                            .header { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px; }
+                            .clinic-name { font-size: 22px; font-weight: bold; color: #1e3a8a; margin-bottom: 4px; }
+                            .clinic-subtitle { font-size: 13px; color: #4b5563; }
+                            .document-title { font-size: 18px; font-weight: bold; text-align: center; margin: 24px 0 16px; text-transform: uppercase; letter-spacing: 0.08em; }
+                            .section { margin-bottom: 18px; }
+                            .section h3 { margin: 0 0 10px; font-size: 15px; color: #1f2937; text-transform: uppercase; letter-spacing: 0.05em; }
+                            .info-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 12px 16px; font-size: 14px; }
+                            .label { font-weight: 600; color: #1f2937; }
+                            .notes { background: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; font-size: 14px; }
+                            .signature-group { margin-top: 40px; display: flex; justify-content: space-between; gap: 40px; }
+                            .signature-block { flex: 1; }
+                            .signature-line { border-bottom: 1px solid #1f2937; height: 32px; margin-bottom: 6px; }
+                            .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #6b7280; border-top: 1px solid #d1d5db; padding-top: 12px; }
+                            .meta { text-align: right; font-size: 12px; color: #374151; }
+                            .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0.03em; }
+                            .muted { color: #6b7280; font-size: 13px; }
+                            .list { margin: 0; padding-left: 18px; font-size: 14px; }
+                            .list li { margin-bottom: 4px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <div style="display:flex;justify-content:center;align-items:center;gap:16px;">
+                                <img src="${logoUrl}" alt="Clinic Logo" style="height:96px;" />
+                                <div style="text-align:left;">
+                                    <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
+                                    <div class="clinic-subtitle">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
+                                    <div class="clinic-subtitle">Contact : Manoj VRC Swami  +91 81472 91675 · Amrutha Varshini D +91 63625 88851</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="meta">
+                            <div><span class="label">Refusal Number:</span> ${escapeValue(normalized.refusalNumber || 'Pending')}</div>
+                            <div><span class="label">Document Generated:</span> ${generatedDate} ${generatedTime}</div>
+                        </div>
+
+                        <div class="document-title">Treatment Refusal Acknowledgement</div>
+
+                        <div class="section">
+                            <h3>Patient Information</h3>
+                            <div class="info-grid">
+                                <div><span class="label">Name:</span> ${escapeValue(normalized.patientName || 'Unknown')}</div>
+                                <div><span class="label">USN:</span> ${escapeValue(normalized.usn || '—')}</div>
+                                <div><span class="label">Age:</span> ${escapeValue((normalized.patientAge || '') + '')}</div>
+                                <div><span class="label">Gender:</span> ${escapeValue(normalized.patientGender || '—')}</div>
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h3>Refusal Summary</h3>
+                            <div class="info-grid">
+                                <div><span class="label">Date of Refusal:</span> ${formatDate(normalized.refusalDate, generatedDate)}</div>
+                                <div><span class="label">Recorded By:</span> ${escapeValue(normalized.doctorName || '—')}</div>
+                                <div><span class="label">Linked Case Report:</span> ${escapeValue(normalized.caseReportId || 'None')}</div>
+                                <div><span class="label">Severity Level:</span> ${severityBadge}</div>
+                                <div><span class="label">Incident Location:</span> ${escapeValue(normalized.location || 'Not recorded')}</div>
+                                <div><span class="label">Internal Identifier:</span> ${escapeValue(normalized.institutionIdentifier || '—')}</div>
+                                <div><span class="label">External Reference:</span> ${escapeValue(normalized.externalReference || '—')}</div>
+                            </div>
+                            <div class="notes" style="margin-top:12px;">
+                                <div><span class="label">Treatment / Procedure Declined:</span><br/>${escapeValue(normalized.reason || 'Not specified')}</div>
+                                <div style="margin-top:10px;"><span class="label">Risks Explained:</span><br/>${formatMultiline(normalized.risksExplained || 'Documented verbally')}</div>
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h3>Counselling & Education</h3>
+                            <div class="notes">
+                                <div><span class="label">Discussion Summary:</span><br/>${formatMultiline(normalized.counsellingSummary || 'Summary not recorded')}</div>
+                                <div style="margin-top:10px;"><span class="label">Checklist Items:</span></div>
+                                <div style="margin-top:6px;">${checklistHtml}</div>
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h3>Follow-up Plan</h3>
+                            ${followUpHtml}
+                        </div>
+
+                        <div class="section">
+                            <h3>Witnesses & Identifiers</h3>
+                            <div class="info-grid">
+                                <div><span class="label">Primary Witness:</span> ${escapeValue(normalized.witnessName || '—')}</div>
+                                <div><span class="label">Primary Witness Contact:</span> ${escapeValue(normalized.witnessContact || '—')}</div>
+                            </div>
+                            <div style="margin-top:10px;">
+                                <span class="label">Additional Witnesses:</span>
+                                <div style="margin-top:6px;">${additionalWitnessesHtml}</div>
+                            </div>
+                            <div style="margin-top:10px;">
+                                <span class="label">Supplementary Identifiers:</span>
+                                <div style="margin-top:6px;">${identifiersHtml}</div>
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h3>Attachments & Supporting Evidence</h3>
+                            ${attachmentsHtml}
+                        </div>
+
+                        <div class="section">
+                            <h3>Clinic Notes & Remarks</h3>
+                            <div class="notes">
+                                <div><span class="label">Internal Notes:</span><br/>${formatMultiline(normalized.notes || 'No additional notes documented')}</div>
+                                <div style="margin-top:10px;"><span class="label">Remarks Shared with Patient / Guardian:</span><br/>${formatMultiline(normalized.doctorRemarks || 'Not recorded')}</div>
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h3>Consent Declaration</h3>
+                            <div class="info-grid">
+                                <div><span class="label">Consent Status:</span> ${consentBadge}</div>
+                                <div><span class="label">Patient / Guardian:</span> ${escapeValue(normalized.consentSignedName || '—')}</div>
+                                <div><span class="label">USN / ID Reference:</span> ${escapeValue(normalized.consentSignedUsn || '—')}</div>
+                            </div>
+                            <div class="notes" style="margin-top:12px;">
+                                <span class="label">Declaration Text:</span><br/>${formatMultiline(normalized.consentTerms)}
+                            </div>
+                        </div>
+
+                        <div class="signature-group">
+                            <div class="signature-block">
+                                <div class="signature-line"></div>
+                                <div class="label">Patient / Guardian Signature</div>
+                            </div>
+                            <div class="signature-block">
+                                <div class="signature-line"></div>
+                                <div class="label">Attending Staff Signature</div>
+                            </div>
+                        </div>
+
+                        <div class="footer">
+                            <p><strong>New Horizon Sanjeevani Clinic</strong> · This document records a voluntary refusal of treatment after counselling.</p>
+                            <p>Refusal Number: ${escapeValue(normalized.refusalNumber || 'Pending')} · Dated: ${formatDate(normalized.refusalDate, generatedDate)}</p>
+                            <p>© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                        </div>
+
+                        <div class="no-print" style="text-align:center;margin-top:20px;">
+                            <button class="btn" onclick="window.print()">🖨️ Print Document</button>
+                            <button class="btn" onclick="window.close()" style="background:#6c757d;">✕ Close</button>
+                        </div>
+                    </body>
+                    </html>
+                `);
+
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(() => { printWindow.print(); }, 400);
+            };
+
             return (
                 <div className="space-y-6">
                     {/* Sub-navigation */}
@@ -4248,6 +4949,18 @@
                                 onClick={() => setSubTab('sick-mgmt')}
                             >
                                 📋 Sick Management
+                            </button>
+                            <button
+                                className={`px-4 py-2 font-medium ${subTab === 'treatment-refusal' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
+                                onClick={() => setSubTab('treatment-refusal')}
+                            >
+                                🚫 Treatment Refusal
+                            </button>
+                            <button
+                                className={`px-4 py-2 font-medium ${subTab === 'refusal-mgmt' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
+                                onClick={() => setSubTab('refusal-mgmt')}
+                            >
+                                🗂️ Refusal Management
                             </button>
                         </div>
                     </div>
@@ -4644,6 +5357,492 @@
                         </div>
                     )}
 
+                    {/* Treatment Refusal Form */}
+                    {subTab === 'treatment-refusal' && (
+                        <div className="card">
+                            <h2 className="text-xl font-semibold mb-4">Treatment Refusal</h2>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Select Patient *</label>
+                                    <div className="relative refusal-patient-search">
+                                        <input
+                                            type="text"
+                                            value={refusalSearchTerm}
+                                            onChange={(e) => {
+                                                setRefusalSearchTerm(e.target.value);
+                                                setShowRefusalPatientDropdown(true);
+                                                if (!e.target.value) {
+                                                    setRefusalFormData(prev => ({ ...prev, usn: '', caseReportId: '' }));
+                                                    setSelectedPatientDetails(null);
+                                                }
+                                            }}
+                                            onFocus={() => setShowRefusalPatientDropdown(true)}
+                                            placeholder="Search patient by USN or name..."
+                                            className="form-input pr-8"
+                                        />
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 10-14 0 7 7 0 0014 0z" /></svg>
+                                        </div>
+                                        {showRefusalPatientDropdown && filteredRefusalPatients.length > 0 && (
+                                            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded shadow max-h-60 overflow-auto">
+                                                {filteredRefusalPatients.slice(0, 10).map(p => (
+                                                    <div key={p.usn} onClick={() => selectRefusalPatient(p)} className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                                                        <div className="font-medium">{p.fullName}</div>
+                                                        <div className="text-xs text-gray-600">{p.usn} • {p.age}y • {p.gender}</div>
+                                                    </div>
+                                                ))}
+                                                {filteredRefusalPatients.length === 0 && (
+                                                    <div className="px-3 py-2 text-xs text-gray-500">No matches</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Doctor Name</label>
+                                    <select
+                                        value={refusalFormData.doctorName}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, doctorName: e.target.value }))}
+                                        className="form-input"
+                                    >
+                                        <option value="Mr. Manoj VRC Swami NH-1581">Mr. Manoj VRC Swami NH-1581</option>
+                                        <option value="Ms. Amrutha Varshini D NH - 1215">Ms. Amrutha Varshini D NH - 1215</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Refusal Date *</label>
+                                    <input
+                                        type="date"
+                                        value={refusalFormData.refusalDate}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, refusalDate: e.target.value }))}
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Linked Case Report (optional)</label>
+                                    <select
+                                        value={refusalFormData.caseReportId}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, caseReportId: e.target.value }))}
+                                        className="form-input"
+                                    >
+                                        <option value="">No linked case report</option>
+                                        {refusalFormData.usn && safeCaseReports
+                                            .filter(cr => cr.usn === refusalFormData.usn)
+                                            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                            .map(report => (
+                                                <option key={report.id || report.reportNumber} value={report.reportNumber}>
+                                                    {report.reportNumber} - {new Date(report.reportDate).toLocaleDateString()} ({report.diagnosis})
+                                                </option>
+                                            ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Reason for Refusal *</label>
+                                    <input
+                                        type="text"
+                                        value={refusalFormData.reason}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, reason: e.target.value }))}
+                                        className="form-input"
+                                        placeholder="Describe what treatment or care was refused"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Severity Level</label>
+                                        <select
+                                            value={refusalFormData.severityLevel}
+                                            onChange={(e) => setRefusalFormData(prev => ({ ...prev, severityLevel: e.target.value }))}
+                                            className="form-input"
+                                        >
+                                            <option value="low">Low</option>
+                                            <option value="moderate">Moderate</option>
+                                            <option value="high">High</option>
+                                            <option value="critical">Critical</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Incident Location</label>
+                                        <input
+                                            type="text"
+                                            value={refusalFormData.location}
+                                            onChange={(e) => setRefusalFormData(prev => ({ ...prev, location: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="Clinic room, triage desk, hostel, etc."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Risks Explained</label>
+                                    <textarea
+                                        value={refusalFormData.risksExplained}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, risksExplained: e.target.value }))}
+                                        rows="3"
+                                        className="form-input"
+                                        placeholder="Document risks discussed with the patient"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Counselling Summary</label>
+                                    <textarea
+                                        value={refusalFormData.counsellingSummary}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, counsellingSummary: e.target.value }))}
+                                        rows="3"
+                                        className="form-input"
+                                        placeholder="Summarize the counselling conversation"
+                                    />
+                                    <div className="mt-3">
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Counselling Checklist</div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            {counsellingOptions.map(option => (
+                                                <label key={option} className="flex items-center text-sm bg-white border border-gray-200 rounded px-3 py-2 shadow-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={refusalFormData.counsellingChecklist.includes(option)}
+                                                        onChange={() => toggleCounsellingOption(option)}
+                                                        className="mr-2"
+                                                    />
+                                                    <span>{option}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border border-gray-200 rounded-md p-4 bg-gray-50">
+                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                        <label className="text-sm font-medium">Follow-up Plan</label>
+                                        <label className="flex items-center text-sm font-medium">
+                                            <input
+                                                type="checkbox"
+                                                checked={refusalFormData.followUpRequired}
+                                                onChange={(e) => setRefusalFormData(prev => ({ ...prev, followUpRequired: e.target.checked }))}
+                                                className="mr-2"
+                                            />
+                                            Follow-up required
+                                        </label>
+                                    </div>
+                                    {refusalFormData.followUpRequired && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Follow-up Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={refusalFormData.followUpDate}
+                                                    onChange={(e) => setRefusalFormData(prev => ({ ...prev, followUpDate: e.target.value }))}
+                                                    className="form-input"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Follow-up Actions</label>
+                                                <textarea
+                                                    value={refusalFormData.followUpActions}
+                                                    onChange={(e) => setRefusalFormData(prev => ({ ...prev, followUpActions: e.target.value }))}
+                                                    rows="3"
+                                                    className="form-input"
+                                                    placeholder="Outline wellness checks, guardian calls, or escalations"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Primary Witness Name</label>
+                                        <input
+                                            type="text"
+                                            value={refusalFormData.witnessName}
+                                            onChange={(e) => setRefusalFormData(prev => ({ ...prev, witnessName: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="Staff or guardian witnessing refusal"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Primary Witness Contact</label>
+                                        <input
+                                            type="text"
+                                            value={refusalFormData.witnessContact}
+                                            onChange={(e) => setRefusalFormData(prev => ({ ...prev, witnessContact: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="Phone or email"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="border border-gray-200 rounded-md p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-sm font-medium">Additional Witnesses</span>
+                                        <button
+                                            type="button"
+                                            onClick={addAdditionalWitness}
+                                            className="btn btn-sm bg-blue-500 hover:bg-blue-600 text-white"
+                                        >
+                                            + Add witness
+                                        </button>
+                                    </div>
+                                    {refusalFormData.additionalWitnesses.length === 0 ? (
+                                        <p className="text-xs text-gray-500">No additional witnesses added.</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {refusalFormData.additionalWitnesses.map((w, index) => (
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-white border border-gray-200 rounded-md p-3">
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={w.name}
+                                                            onChange={(e) => updateAdditionalWitness(index, 'name', e.target.value)}
+                                                            className="form-input"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Relationship</label>
+                                                        <input
+                                                            type="text"
+                                                            value={w.relation}
+                                                            onChange={(e) => updateAdditionalWitness(index, 'relation', e.target.value)}
+                                                            className="form-input"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Contact</label>
+                                                        <input
+                                                            type="text"
+                                                            value={w.contact}
+                                                            onChange={(e) => updateAdditionalWitness(index, 'contact', e.target.value)}
+                                                            className="form-input"
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-end justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeAdditionalWitness(index)}
+                                                            className="btn btn-sm bg-red-500 hover:bg-red-600 text-white"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Internal Notes</label>
+                                    <textarea
+                                        value={refusalFormData.notes}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, notes: e.target.value }))}
+                                        rows="3"
+                                        className="form-input"
+                                        placeholder="Clinic-only notes or observations"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Doctor Remarks to Patient</label>
+                                    <textarea
+                                        value={refusalFormData.doctorRemarks}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, doctorRemarks: e.target.value }))}
+                                        rows="3"
+                                        className="form-input"
+                                        placeholder="Key remarks communicated to the patient or guardian"
+                                    />
+                                </div>
+
+                                <div className="border border-gray-200 rounded-md p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-sm font-medium">Additional Identifiers</span>
+                                        <button
+                                            type="button"
+                                            onClick={addAdditionalIdentifier}
+                                            className="btn btn-sm bg-blue-500 hover:bg-blue-600 text-white"
+                                        >
+                                            + Add identifier
+                                        </button>
+                                    </div>
+                                    {refusalFormData.additionalIdentifiers.length === 0 ? (
+                                        <p className="text-xs text-gray-500">Capture optional IDs such as parent contact, hostel number, or insurance card.</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {refusalFormData.additionalIdentifiers.map((item, index) => (
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white border border-gray-200 rounded-md p-3">
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Identifier Type</label>
+                                                        <input
+                                                            type="text"
+                                                            value={item.type}
+                                                            onChange={(e) => updateAdditionalIdentifier(index, 'type', e.target.value)}
+                                                            className="form-input"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-2">
+                                                        <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Identifier Value</label>
+                                                        <input
+                                                            type="text"
+                                                            value={item.value}
+                                                            onChange={(e) => updateAdditionalIdentifier(index, 'value', e.target.value)}
+                                                            className="form-input"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-3 flex justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeAdditionalIdentifier(index)}
+                                                            className="btn btn-sm bg-red-500 hover:bg-red-600 text-white"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="border border-gray-200 rounded-md p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-sm font-medium">Attachments & Evidence</span>
+                                        <button
+                                            type="button"
+                                            onClick={addAttachment}
+                                            className="btn btn-sm bg-blue-500 hover:bg-blue-600 text-white"
+                                        >
+                                            + Add attachment
+                                        </button>
+                                    </div>
+                                    {refusalFormData.attachments.length === 0 ? (
+                                        <p className="text-xs text-gray-500">Record references to scanned forms, photos, or supporting notes.</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {refusalFormData.attachments.map((item, index) => (
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white border border-gray-200 rounded-md p-3">
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Attachment Description</label>
+                                                        <input
+                                                            type="text"
+                                                            value={item.description}
+                                                            onChange={(e) => updateAttachment(index, 'description', e.target.value)}
+                                                            className="form-input"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-2">
+                                                        <label className="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-600">Link / Reference</label>
+                                                        <input
+                                                            type="text"
+                                                            value={item.reference}
+                                                            onChange={(e) => updateAttachment(index, 'reference', e.target.value)}
+                                                            className="form-input"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-3 flex justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeAttachment(index)}
+                                                            className="btn btn-sm bg-red-500 hover:bg-red-600 text-white"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Institution Identifier</label>
+                                        <input
+                                            type="text"
+                                            value={refusalFormData.institutionIdentifier}
+                                            onChange={(e) => setRefusalFormData(prev => ({ ...prev, institutionIdentifier: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="Internal tracking ID or file number"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">External Reference</label>
+                                        <input
+                                            type="text"
+                                            value={refusalFormData.externalReference}
+                                            onChange={(e) => setRefusalFormData(prev => ({ ...prev, externalReference: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="External reference, complaint ID, etc."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="border border-blue-200 rounded-md p-4 bg-blue-50">
+                                    <h3 className="text-sm font-semibold text-blue-700 mb-3">Patient Consent & Declaration</h3>
+                                    <textarea
+                                        value={refusalFormData.consentTerms}
+                                        readOnly
+                                        rows="4"
+                                        className="form-input text-sm bg-white"
+                                    />
+                                    <label className="flex items-start mt-3 text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={refusalFormData.consentAcknowledged}
+                                            onChange={(e) => setRefusalFormData(prev => ({ ...prev, consentAcknowledged: e.target.checked }))}
+                                            className="mr-2 mt-1"
+                                        />
+                                        <span>I have reviewed the statement with the patient/guardian and they acknowledge the above declaration.</span>
+                                    </label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Patient / Guardian Name</label>
+                                            <input
+                                                type="text"
+                                                value={refusalFormData.consentSignedName}
+                                                onChange={(e) => setRefusalFormData(prev => ({ ...prev, consentSignedName: e.target.value }))}
+                                                className="form-input"
+                                                placeholder="Person providing acknowledgement"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">USN / ID Reference</label>
+                                            <input
+                                                type="text"
+                                                value={refusalFormData.consentSignedUsn}
+                                                onChange={(e) => setRefusalFormData(prev => ({ ...prev, consentSignedUsn: e.target.value }))}
+                                                className="form-input"
+                                                placeholder="USN, guardian ID, or relation"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-6 flex gap-4">
+                                <button
+                                    onClick={handleTreatmentRefusalSubmit}
+                                    className="btn btn-secondary"
+                                    disabled={!refusalFormData.usn || !refusalFormData.reason || !refusalFormData.refusalDate || !refusalFormData.consentAcknowledged || (refusalFormData.followUpRequired && !refusalFormData.followUpDate)}
+                                >
+                                    💾 Save Treatment Refusal
+                                </button>
+                                {currentTreatmentRefusalNumber && (
+                                    <div className="text-sm text-gray-600 self-center">
+                                        Last recorded: <span className="font-mono">{currentTreatmentRefusalNumber}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Case Report Management */}
                     {subTab === 'case-mgmt' && (
                         <div className="space-y-6">
@@ -4779,6 +5978,115 @@
                                     {safeSickIntimations.length === 0 && (
                                         <div className="text-center py-8 text-gray-500">
                                             No sick intimations found. Create a sick leave certificate to see it here.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {subTab === 'refusal-mgmt' && (
+                        <div className="space-y-6">
+                            <div className="card">
+                                <h2 className="text-xl font-semibold mb-4">Treatment Refusal Management</h2>
+                                <p className="text-gray-600 mb-4">Review and print logged treatment refusal records</p>
+
+                                <div className="mb-6">
+                                    <input
+                                        type="text"
+                                        placeholder="Search by patient name, USN, or refusal number..."
+                                        className="form-input w-full max-w-md"
+                                        value={refusalFormData.searchTerm || ''}
+                                        onChange={(e) => setRefusalFormData(prev => ({ ...prev, searchTerm: e.target.value }))}
+                                    />
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full table-auto border-collapse border border-gray-300">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="border border-gray-300 px-4 py-2">Refusal No.</th>
+                                                <th className="border border-gray-300 px-4 py-2">Patient Name</th>
+                                                <th className="border border-gray-300 px-4 py-2">USN</th>
+                                                <th className="border border-gray-300 px-4 py-2">Date</th>
+                                                <th className="border border-gray-300 px-4 py-2">Doctor</th>
+                                                <th className="border border-gray-300 px-4 py-2">Severity</th>
+                                                <th className="border border-gray-300 px-4 py-2">Follow-up</th>
+                                                <th className="border border-gray-300 px-4 py-2">Consent</th>
+                                                <th className="border border-gray-300 px-4 py-2">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {normalizedTreatmentRefusals
+                                                .filter(refusal => {
+                                                    const term = (refusalFormData.searchTerm || '').toLowerCase();
+                                                    if (!term) return true;
+                                                    return (
+                                                        (refusal.refusalNumber || '').toLowerCase().includes(term) ||
+                                                        (refusal.patientName || '').toLowerCase().includes(term) ||
+                                                        (refusal.usn || '').toLowerCase().includes(term)
+                                                    );
+                                                })
+                                                .sort((a, b) => new Date(b.refusalDate || b.createdAt) - new Date(a.refusalDate || a.createdAt))
+                                                .map(refusal => (
+                                                    <tr key={refusal.refusalNumber || refusal.id}>
+                                                        <td className="border border-gray-300 px-4 py-2 font-mono text-sm">{refusal.refusalNumber}</td>
+                                                        <td className="border border-gray-300 px-4 py-2">{refusal.patientName || 'Unknown'}</td>
+                                                        <td className="border border-gray-300 px-4 py-2">{refusal.usn || '-'}</td>
+                                                        <td className="border border-gray-300 px-4 py-2">{refusal.refusalDate ? new Date(refusal.refusalDate).toLocaleDateString() : '—'}</td>
+                                                        <td className="border border-gray-300 px-4 py-2">{refusal.doctorName || '—'}</td>
+                                                        <td className="border border-gray-300 px-4 py-2">
+                                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${severityBadgeClass[refusal.severityLevel] || severityBadgeClass.moderate}`}>
+                                                                {formatSeverityLabel(refusal.severityLevel || 'moderate')}
+                                                            </span>
+                                                            {refusal.location ? (
+                                                                <div className="text-xs text-gray-500 mt-1">{refusal.location}</div>
+                                                            ) : null}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-2">
+                                                            {refusal.followUpRequired ? (
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-gray-700">Required</div>
+                                                                    <div className="text-xs text-gray-500">
+                                                                        {refusal.followUpDate ? new Date(refusal.followUpDate).toLocaleDateString() : 'Awaiting schedule'}
+                                                                    </div>
+                                                                    {refusal.followUpActions ? (
+                                                                        <div className="text-xs text-gray-500 mt-1 truncate max-w-[160px]" title={refusal.followUpActions}>
+                                                                            {refusal.followUpActions}
+                                                                        </div>
+                                                                    ) : null}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-sm text-gray-500">Not required</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-2">
+                                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${refusal.consentAcknowledged ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                                {refusal.consentAcknowledged ? 'Acknowledged' : 'Pending'}
+                                                            </span>
+                                                            {refusal.consentSignedName ? (
+                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                    {refusal.consentSignedName}
+                                                                    {refusal.consentSignedUsn ? ` · ${refusal.consentSignedUsn}` : ''}
+                                                                </div>
+                                                            ) : null}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-2">
+                                                            <button
+                                                                onClick={() => printTreatmentRefusalFromRecord(refusal)}
+                                                                className="btn btn-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
+                                                            >
+                                                                🖨️ Print
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            }
+                                        </tbody>
+                                    </table>
+                                    {normalizedTreatmentRefusals.length === 0 && (
+                                        <div className="text-center py-8 text-gray-500">
+                                            No treatment refusals recorded yet. Document a refusal to view it here.
                                         </div>
                                     )}
                                 </div>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import csv
 import io
+import json
 import os
 import sys
 import sqlite3
@@ -140,6 +141,7 @@ def _ensure_indexes(conn: sqlite3.Connection) -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_prescriptions_usn_prescribed_at ON prescriptions(usn, prescribed_at DESC);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_case_reports_usn ON case_reports(usn);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sick_intimations_usn ON sick_intimations(usn);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_treatment_refusals_usn ON treatment_refusals(usn);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_patients_full_name ON patients(full_name);")
     conn.commit()
 
@@ -397,8 +399,68 @@ def init_db() -> None:
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (usn) REFERENCES patients(usn) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS treatment_refusals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            refusal_number TEXT NOT NULL UNIQUE,
+            usn TEXT NOT NULL,
+            patient_name TEXT NULL,
+            patient_age INTEGER NULL,
+            patient_gender TEXT NULL,
+            case_report_id TEXT NULL,
+            refusal_date TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            risks_explained TEXT NULL,
+            witness_name TEXT NULL,
+            witness_contact TEXT NULL,
+            notes TEXT NULL,
+            doctor_name TEXT NULL,
+            status TEXT NOT NULL DEFAULT 'Active',
+            severity_level TEXT NULL,
+            counselling_summary TEXT NULL,
+            follow_up_required INTEGER NOT NULL DEFAULT 0,
+            follow_up_date TEXT NULL,
+            follow_up_actions TEXT NULL,
+            consent_acknowledged INTEGER NOT NULL DEFAULT 0,
+            consent_signed_name TEXT NULL,
+            consent_signed_usn TEXT NULL,
+            consent_terms TEXT NULL,
+            doctor_remarks TEXT NULL,
+            additional_identifiers TEXT NULL,
+            attachments TEXT NULL,
+            additional_witnesses TEXT NULL,
+            institution_identifier TEXT NULL,
+            external_reference TEXT NULL,
+            location TEXT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (usn) REFERENCES patients(usn) ON DELETE CASCADE,
+            FOREIGN KEY (case_report_id) REFERENCES case_reports(report_number) ON DELETE SET NULL
+        );
         """
     )
+
+    def _ensure_column(table: str, column: str, definition: str) -> None:
+        info = cur.execute(f"PRAGMA table_info({table})").fetchall()
+        if not any(col[1] == column for col in info):
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition};")
+
+    # Backfill new treatment refusal columns for existing databases
+    _ensure_column("treatment_refusals", "severity_level", "TEXT")
+    _ensure_column("treatment_refusals", "counselling_summary", "TEXT")
+    _ensure_column("treatment_refusals", "follow_up_required", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column("treatment_refusals", "follow_up_date", "TEXT")
+    _ensure_column("treatment_refusals", "follow_up_actions", "TEXT")
+    _ensure_column("treatment_refusals", "consent_acknowledged", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column("treatment_refusals", "consent_signed_name", "TEXT")
+    _ensure_column("treatment_refusals", "consent_signed_usn", "TEXT")
+    _ensure_column("treatment_refusals", "consent_terms", "TEXT")
+    _ensure_column("treatment_refusals", "doctor_remarks", "TEXT")
+    _ensure_column("treatment_refusals", "additional_identifiers", "TEXT")
+    _ensure_column("treatment_refusals", "attachments", "TEXT")
+    _ensure_column("treatment_refusals", "additional_witnesses", "TEXT")
+    _ensure_column("treatment_refusals", "institution_identifier", "TEXT")
+    _ensure_column("treatment_refusals", "external_reference", "TEXT")
+    _ensure_column("treatment_refusals", "location", "TEXT")
 
     # Seed some lab tests if empty
     if cur.execute("SELECT COUNT(1) FROM lab_tests").fetchone()[0] == 0:
@@ -1216,6 +1278,130 @@ def api_sick_intimations():
     return jsonify({"ok": True, "intimationNumber": intimation_number}), 201
 
 
+@app.route("/api/treatment-refusals", methods=["GET", "POST"])
+def api_treatment_refusals():
+    if request.method == "GET":
+        usn = request.args.get("usn")
+        conn = get_db()
+        if usn:
+            rows = conn.execute(
+                "SELECT * FROM treatment_refusals WHERE usn=? ORDER BY created_at DESC",
+                (usn,),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM treatment_refusals ORDER BY created_at DESC").fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+
+    data = request.get_json(silent=True) or {}
+    refusal_number = (data.get("refusalNumber") or data.get("refusal_number") or "").strip()
+    usn = (data.get("usn") or "").strip()
+    if not (refusal_number and usn):
+        return jsonify({"error": "refusalNumber and usn are required"}), 400
+
+    conn = get_db()
+    patient_exists = conn.execute("SELECT 1 FROM patients WHERE usn=?", (usn,)).fetchone()
+    if not patient_exists:
+        conn.execute(
+            "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
+            (usn, data.get("patientName", "Unknown"), data.get("patientAge") or 0, data.get("patientGender", "Unknown"), "", ""),
+        )
+
+    def _json_or_none(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except TypeError:
+            return json.dumps(str(value), ensure_ascii=False)
+
+    follow_up_required = 1 if data.get("followUpRequired") else 0
+    consent_acknowledged = 1 if data.get("consentAcknowledged") else 0
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO treatment_refusals(
+            refusal_number, usn, patient_name, patient_age, patient_gender, case_report_id,
+            refusal_date, reason, risks_explained, witness_name, witness_contact, notes,
+            doctor_name, status, severity_level, counselling_summary, follow_up_required,
+            follow_up_date, follow_up_actions, consent_acknowledged, consent_signed_name,
+            consent_signed_usn, consent_terms, doctor_remarks, additional_identifiers,
+            attachments, additional_witnesses, institution_identifier, external_reference,
+            location, created_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(refusal_number) DO UPDATE SET
+            usn=excluded.usn,
+            patient_name=excluded.patient_name,
+            patient_age=excluded.patient_age,
+            patient_gender=excluded.patient_gender,
+            case_report_id=excluded.case_report_id,
+            refusal_date=excluded.refusal_date,
+            reason=excluded.reason,
+            risks_explained=excluded.risks_explained,
+            witness_name=excluded.witness_name,
+            witness_contact=excluded.witness_contact,
+            notes=excluded.notes,
+            doctor_name=excluded.doctor_name,
+            status=excluded.status,
+            severity_level=excluded.severity_level,
+            counselling_summary=excluded.counselling_summary,
+            follow_up_required=excluded.follow_up_required,
+            follow_up_date=excluded.follow_up_date,
+            follow_up_actions=excluded.follow_up_actions,
+            consent_acknowledged=excluded.consent_acknowledged,
+            consent_signed_name=excluded.consent_signed_name,
+            consent_signed_usn=excluded.consent_signed_usn,
+            consent_terms=excluded.consent_terms,
+            doctor_remarks=excluded.doctor_remarks,
+            additional_identifiers=excluded.additional_identifiers,
+            attachments=excluded.attachments,
+            additional_witnesses=excluded.additional_witnesses,
+            institution_identifier=excluded.institution_identifier,
+            external_reference=excluded.external_reference,
+            location=excluded.location
+        """,
+        (
+            refusal_number,
+            usn,
+            data.get("patientName"),
+            data.get("patientAge"),
+            data.get("patientGender"),
+            data.get("caseReportId"),
+            data.get("refusalDate"),
+            data.get("reason"),
+            data.get("risksExplained"),
+            data.get("witnessName"),
+            data.get("witnessContact"),
+            data.get("notes"),
+            data.get("doctorName"),
+            data.get("status", "Active"),
+            data.get("severityLevel"),
+            data.get("counsellingSummary") or data.get("counsellingSteps"),
+            follow_up_required,
+            data.get("followUpDate"),
+            data.get("followUpActions"),
+            consent_acknowledged,
+            data.get("consentSignedName"),
+            data.get("consentSignedUsn"),
+            data.get("consentTerms"),
+            data.get("doctorRemarks"),
+            _json_or_none(data.get("additionalIdentifiers")),
+            _json_or_none(data.get("attachments")),
+            _json_or_none(data.get("additionalWitnesses")),
+            data.get("institutionIdentifier"),
+            data.get("externalReference"),
+            data.get("location"),
+            datetime.utcnow().isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "refusalNumber": refusal_number}), 201
+
+
 @app.route("/api/export/prescriptions")
 def api_export_prescriptions():
     conn = get_db()
@@ -1530,6 +1716,50 @@ def sync_sick_intimations():
         for si in data:
             try:
                 if not si.get('intimationNumber') or not si.get('usn'):
+
+@app.route("/api/sync/treatment-refusals", methods=["POST"])
+def sync_treatment_refusals():
+    """Bulk sync treatment refusal records from offline data"""
+    try:
+        data = request.get_json()
+        if not isinstance(data, list):
+            return jsonify({"error": "Expected array of treatment refusals"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        synced_count = 0
+        for tr in data:
+            try:
+                if not tr.get('refusalNumber') or not tr.get('usn'):
+                    continue
+                cur.execute(
+                    "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
+                    (tr.get('usn'), tr.get('patientName') or 'Unknown', tr.get('patientAge') or 0, tr.get('patientGender') or 'Unknown', '', ''),
+                )
+                cur.execute(
+                    """
+                    INSERT OR REPLACE INTO treatment_refusals(
+                        id, refusal_number, usn, patient_name, patient_age, patient_gender, case_report_id,
+                        refusal_date, reason, risks_explained, witness_name, witness_contact, notes,
+                        doctor_name, status, created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        tr.get('id'), tr.get('refusalNumber'), tr.get('usn'), tr.get('patientName'), tr.get('patientAge'),
+                        tr.get('patientGender'), tr.get('caseReportId'), tr.get('refusalDate'), tr.get('reason'),
+                        tr.get('risksExplained'), tr.get('witnessName'), tr.get('witnessContact'), tr.get('notes'),
+                        tr.get('doctorName'), tr.get('status', 'Active'), tr.get('createdAt') or datetime.utcnow().isoformat()
+                    ),
+                )
+                synced_count += 1
+            except Exception as e:
+                print(f"Error syncing treatment refusal {tr.get('refusalNumber', 'unknown')}: {e}")
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success", "synced_count": synced_count, "total_received": len(data)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
                     continue
                 cur.execute(
                     "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
@@ -1542,6 +1772,7 @@ def sync_sick_intimations():
                         sick_leave_from, sick_leave_to, total_days, reason, symptoms, rest_recommended,
                         doctor_name, issue_date, status, created_at
                     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        treatment_refusals_count = cur.execute("SELECT COUNT(*) FROM treatment_refusals").fetchone()[0]
                     """,
                     (
                         si.get('id'), si.get('intimationNumber'), si.get('usn'), si.get('patientName'), si.get('patientAge'), si.get('patientGender'),
@@ -1550,7 +1781,8 @@ def sync_sick_intimations():
                         si.get('createdAt') or datetime.utcnow().isoformat()
                     ),
                 )
-                synced_count += 1
+                "sick_intimations": sick_intimations_count,
+                "treatment_refusals": treatment_refusals_count
             except Exception as e:
                 print(f"Error syncing sick intimation {si.get('intimationNumber', 'unknown')}: {e}")
         conn.commit()
