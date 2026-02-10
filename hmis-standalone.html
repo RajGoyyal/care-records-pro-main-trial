@@ -271,10 +271,11 @@
                 const offlineCaseReports = loadFromStorage('caseReports', []);
                 const offlineSickIntimations = loadFromStorage('sickIntimations', []);
                 const offlineTreatmentRefusals = ensureArray(loadFromStorage('treatmentRefusals', []));
+                const offlineReferrals = ensureArray(loadFromStorage('referrals', []));
 
                 // Create backup before sync
                 if (offlinePatients.length > 0 || offlineVitals.length > 0 || offlinePrescriptions.length > 0 || 
-                    offlineCaseReports.length > 0 || offlineSickIntimations.length > 0 || offlineTreatmentRefusals.length > 0) {
+                    offlineCaseReports.length > 0 || offlineSickIntimations.length > 0 || offlineTreatmentRefusals.length > 0 || offlineReferrals.length > 0) {
                     console.log('Creating backup of offline data...');
                     saveToStorage('backup_patients', offlinePatients);
                     saveToStorage('backup_vitals', offlineVitals);
@@ -282,6 +283,7 @@
                     saveToStorage('backup_caseReports', offlineCaseReports);
                     saveToStorage('backup_sickIntimations', offlineSickIntimations);
                     saveToStorage('backup_treatmentRefusals', offlineTreatmentRefusals);
+                    saveToStorage('backup_referrals', offlineReferrals);
                     saveToStorage('backup_timestamp', new Date().toISOString());
                 }
 
@@ -291,7 +293,8 @@
                     prescriptions: { synced: 0, total: 0 },
                     caseReports: { synced: 0, total: 0 },
                     sickIntimations: { synced: 0, total: 0 },
-                    treatmentRefusals: { synced: 0, total: 0 }
+                    treatmentRefusals: { synced: 0, total: 0 },
+                    referrals: { synced: 0, total: 0 }
                 };
 
                 // Bulk sync patients
@@ -409,7 +412,7 @@
                     }
                 }
 
-                // Bulk sync case reports
+                // Bulk sync incident reports
                 if (offlineCaseReports.length > 0) {
                     try {
                         const result = await apiRequest('/api/sync/case-reports', {
@@ -420,9 +423,9 @@
                             synced: result.synced_count,
                             total: result.total_received
                         };
-                        console.log(`Bulk synced ${result.synced_count}/${result.total_received} case reports`);
+                        console.log(`Bulk synced ${result.synced_count}/${result.total_received} incident reports`);
                     } catch (error) {
-                        console.warn('Failed to bulk sync case reports:', error);
+                        console.warn('Failed to bulk sync incident reports:', error);
                         // Fallback to individual sync
                         for (const caseReport of offlineCaseReports) {
                             try {
@@ -432,7 +435,7 @@
                                 });
                                 syncResults.caseReports.synced++;
                             } catch (err) {
-                                console.warn(`Failed to sync case report ${caseReport.reportNumber}:`, err);
+                                console.warn(`Failed to sync incident report ${caseReport.reportNumber}:`, err);
                             }
                         }
                         syncResults.caseReports.total = offlineCaseReports.length;
@@ -505,10 +508,11 @@
                 
                 // Only update sync timestamp if data was actually synced
                 if (syncResults.patients.synced > 0 || syncResults.vitals.synced > 0 || syncResults.prescriptions.synced > 0 ||
-                    syncResults.caseReports.synced > 0 || syncResults.sickIntimations.synced > 0 || syncResults.treatmentRefusals.synced > 0) {
+                    syncResults.caseReports.synced > 0 || syncResults.sickIntimations.synced > 0 || syncResults.treatmentRefusals.synced > 0 ||
+                    syncResults.referrals.synced > 0) {
                     localStorage.setItem('lastSyncTime', new Date().toISOString());
                     localStorage.removeItem('needsSync');
-                    console.log(`✅ Sync Complete: ${syncResults.patients.synced} patients, ${syncResults.vitals.synced} vitals, ${syncResults.prescriptions.synced} prescriptions, ${syncResults.caseReports.synced} case reports, ${syncResults.sickIntimations.synced} sick intimations, ${syncResults.treatmentRefusals.synced} treatment refusals synced to server`);
+                    console.log(`✅ Sync Complete: ${syncResults.patients.synced} patients, ${syncResults.vitals.synced} vitals, ${syncResults.prescriptions.synced} prescriptions, ${syncResults.caseReports.synced} incident reports, ${syncResults.sickIntimations.synced} sick intimations, ${syncResults.treatmentRefusals.synced} treatment refusals, ${syncResults.referrals.synced} referrals synced to server`);
                 } else {
                     console.log('No new data to sync');
                 }
@@ -749,6 +753,80 @@
             return normalized;
         };
 
+        const normalizeReferralRecord = (record = {}) => {
+            if (!record || typeof record !== 'object') {
+                return {
+                    id: `ref-${Date.now()}`,
+                    referralNumber: '',
+                    usn: '',
+                    patientName: '',
+                    patientAge: '',
+                    patientGender: '',
+                    referralDate: new Date().toISOString().split('T')[0],
+                    referralType: 'hospital',
+                    priorityLevel: 'routine',
+                    incidentReportId: '',
+                    destinationName: '',
+                    destinationDepartment: '',
+                    contactPerson: '',
+                    contactNumber: '',
+                    reason: '',
+                    appointmentDate: '',
+                    transportMode: '',
+                    escortRequired: false,
+                    escortName: '',
+                    escortContact: '',
+                    documentsProvided: [],
+                    followUpPlan: '',
+                    notes: '',
+                    acknowledgementByPatient: false,
+                    ackSignedName: '',
+                    ackSignedUsn: '',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    status: 'Pending'
+                };
+            }
+
+            const documentsProvided = ensureArray(record.documentsProvided)
+                .map(item => (item || '').toString().trim())
+                .filter(Boolean);
+
+            const normalizedId = record.id || (record.referralNumber ? `ref-${record.referralNumber}` : `ref-${Date.now()}`);
+
+            return {
+                id: normalizedId,
+                referralNumber: (record.referralNumber || '').toString().trim(),
+                usn: (record.usn || '').toString().trim(),
+                patientName: (record.patientName || '').toString().trim(),
+                patientAge: Number.isFinite(Number(record.patientAge)) ? Number(record.patientAge) : '',
+                patientGender: (record.patientGender || '').toString().trim(),
+                referralDate: (record.referralDate || '').toString().trim() || new Date().toISOString().split('T')[0],
+                referralType: (record.referralType || 'hospital').toString().trim(),
+                priorityLevel: (record.priorityLevel || 'routine').toString().trim(),
+                incidentReportId: (record.incidentReportId || record.caseReportId || '').toString().trim(),
+                destinationName: (record.destinationName || '').toString().trim(),
+                destinationDepartment: (record.destinationDepartment || '').toString().trim(),
+                contactPerson: (record.contactPerson || '').toString().trim(),
+                contactNumber: (record.contactNumber || '').toString().trim(),
+                reason: (record.reason || '').toString().trim(),
+                appointmentDate: (record.appointmentDate || '').toString().trim(),
+                transportMode: (record.transportMode || '').toString().trim(),
+                escortRequired: Boolean(record.escortRequired),
+                escortName: (record.escortName || '').toString().trim(),
+                escortContact: (record.escortContact || '').toString().trim(),
+                documentsProvided,
+                followUpPlan: (record.followUpPlan || '').toString().trim(),
+                notes: (record.notes || '').toString().trim(),
+                acknowledgementByPatient: Boolean(record.acknowledgementByPatient),
+                ackSignedName: (record.ackSignedName || '').toString().trim(),
+                ackSignedUsn: (record.ackSignedUsn || '').toString().trim(),
+                createdAt: record.createdAt || record.created_at || new Date().toISOString(),
+                updatedAt: record.updatedAt || record.updated_at || record.createdAt || new Date().toISOString(),
+                status: (record.status || 'Pending').toString().trim() || 'Pending'
+            };
+        };
+
         const mapCaseReportFromServer = (record = {}) => ({
             id: record.id ?? record.ID ?? null,
             reportNumber: record.report_number || record.reportNumber || '',
@@ -868,10 +946,11 @@
                 const backupSickIntimations = ensureArray(loadFromStorage('backup_sickIntimations', [])).map(mapSickIntimationFromServer);
                 const backupTreatmentRefusalsRaw = ensureArray(loadFromStorage('backup_treatmentRefusals', []));
                 const backupTreatmentRefusals = backupTreatmentRefusalsRaw.map(normalizeTreatmentRefusalRecord);
+                const backupReferralsRaw = ensureArray(loadFromStorage('backup_referrals', [])).map(normalizeReferralRecord);
                 const backupTimestamp = localStorage.getItem('backup_timestamp');
                 
                 if (backupPatients.length > 0 || backupVitals.length > 0 || backupPrescriptions.length > 0 || 
-                    backupCaseReports.length > 0 || backupSickIntimations.length > 0 || backupTreatmentRefusals.length > 0) {
+                    backupCaseReports.length > 0 || backupSickIntimations.length > 0 || backupTreatmentRefusals.length > 0 || backupReferralsRaw.length > 0) {
                     console.log(`Restoring backup data from ${backupTimestamp}...`);
                     saveToStorage('patients', backupPatients);
                     saveToStorage('vitals', backupVitals);
@@ -879,6 +958,7 @@
                     saveToStorage('caseReports', backupCaseReports);
                     saveToStorage('sickIntimations', backupSickIntimations);
                     saveToStorage('treatmentRefusals', backupTreatmentRefusals);
+                    saveToStorage('referrals', backupReferralsRaw);
                     
                     // Clear backup after restoration
                     localStorage.removeItem('backup_patients');
@@ -887,6 +967,7 @@
                     localStorage.removeItem('backup_caseReports');
                     localStorage.removeItem('backup_sickIntimations');
                     localStorage.removeItem('backup_treatmentRefusals');
+                    localStorage.removeItem('backup_referrals');
                     localStorage.removeItem('backup_timestamp');
                     
                     return { 
@@ -895,7 +976,8 @@
                         prescriptions: backupPrescriptions,
                         caseReports: backupCaseReports,
                         sickIntimations: backupSickIntimations,
-                        treatmentRefusals: backupTreatmentRefusals
+                        treatmentRefusals: backupTreatmentRefusals,
+                        referrals: backupReferralsRaw
                     };
                 }
             } catch (error) {
@@ -1522,7 +1604,7 @@
                                     <span className="badge badge-green">{stats.recentPrescriptions}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span>📋 Case Reports</span>
+                                    <span>📋 Incident Reports</span>
                                     <span className="badge badge-purple">{stats.recentCaseReports}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -1586,7 +1668,7 @@
                                 onClick={() => setActiveTab && setActiveTab('case-reports')}
                                 className="btn btn-info flex items-center justify-center gap-2 py-4"
                             >
-                                📋 Case Report
+                                📋 Incident Report
                             </button>
                         </div>
                     </div>
@@ -3527,8 +3609,8 @@
             );
         };
 
-        // Case Report Management Component
-        const CaseReportManagement = ({ patients, caseReports, setCaseReports, sickIntimations, setSickIntimations, treatmentRefusals, setTreatmentRefusals }) => {
+        // Incident Report Management Component
+        const CaseReportManagement = ({ patients, caseReports, setCaseReports, sickIntimations, setSickIntimations, treatmentRefusals, setTreatmentRefusals, referrals, setReferrals }) => {
             const [subTab, setSubTab] = useState('case-report');
             const [formData, setFormData] = useState({
                 usn: '',
@@ -3558,7 +3640,7 @@
                 restRecommended: true,
                 doctorName: 'Mr. Manoj VRC Swami NH-1581',
                 issueDate: new Date().toISOString().split('T')[0],
-                caseReportId: '' // Link to case report
+                caseReportId: '' // Link to incident report
             });
             const CONSENT_TERMS_TEMPLATE = [
                 'I have been informed of the recommended treatment, the purpose of care, and the expected benefits.',
@@ -3596,6 +3678,38 @@
                 externalReference: '',
                 searchTerm: ''
             });
+            const REFERRAL_DOCUMENT_OPTIONS = [
+                'Referral letter provided',
+                'Diagnostic reports shared',
+                'Medication list included',
+                'Consent form attached',
+                'Insurance documents shared',
+                'Vital sign summary attached'
+            ];
+            const createReferralInitialState = () => ({
+                usn: '',
+                referralDate: new Date().toISOString().split('T')[0],
+                referralType: 'hospital',
+                priorityLevel: 'routine',
+                incidentReportId: '',
+                destinationName: '',
+                destinationDepartment: '',
+                contactPerson: '',
+                contactNumber: '',
+                reason: '',
+                appointmentDate: '',
+                transportMode: '',
+                escortRequired: false,
+                escortName: '',
+                escortContact: '',
+                documentsProvided: [],
+                followUpPlan: '',
+                notes: '',
+                acknowledgementByPatient: false,
+                ackSignedName: '',
+                ackSignedUsn: ''
+            });
+            const [referralFormData, setReferralFormData] = useState(createReferralInitialState);
             const [errors, setErrors] = useState({});
             const [selectedPatientDetails, setSelectedPatientDetails] = useState(null);
             // Unified search states
@@ -3605,11 +3719,14 @@
             const [showCasePatientDropdown, setShowCasePatientDropdown] = useState(false);
             const [showSickPatientDropdown, setShowSickPatientDropdown] = useState(false);
             const [showRefusalPatientDropdown, setShowRefusalPatientDropdown] = useState(false);
+            const [referralSearchTerm, setReferralSearchTerm] = useState('');
+            const [showReferralPatientDropdown, setShowReferralPatientDropdown] = useState(false);
 
             const safePatients = patients || [];
             const safeCaseReports = caseReports || [];
             const safeSickIntimations = sickIntimations || [];
             const safeTreatmentRefusals = ensureArray(treatmentRefusals);
+            const safeReferrals = ensureArray(referrals);
 
             // Generate unique IDs for reports
             const generateCaseReportNumber = () => {
@@ -3632,9 +3749,18 @@
                 return `RT-${new Date().getFullYear()}-${baseNumber}-${random}`;
             };
 
+            const generateReferralNumber = (incidentReportNumber) => {
+                const timestamp = Date.now();
+                const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                const baseNumber = incidentReportNumber ? incidentReportNumber.split('-').slice(-2).join('') : timestamp.toString().slice(-6);
+                return `RF-${new Date().getFullYear()}-${baseNumber}-${random}`;
+            };
+
             const [currentCaseReportNumber, setCurrentCaseReportNumber] = useState('');
             const [currentSickIntimationNumber, setCurrentSickIntimationNumber] = useState('');
             const [currentTreatmentRefusalNumber, setCurrentTreatmentRefusalNumber] = useState('');
+            const [currentReferralNumber, setCurrentReferralNumber] = useState('');
+            const [referralListSearch, setReferralListSearch] = useState('');
 
             const handlePatientSelect = (e, formType = 'case') => {
                 const usn = e.target.value;
@@ -3646,7 +3772,7 @@
                 } else if (formType === 'sick') {
                     setSickFormData(prev => ({ ...prev, usn }));
                     
-                    // Auto-populate case report ID from latest case report for this patient
+                    // Auto-populate incident report ID from latest incident report for this patient
                     const patientCaseReports = safeCaseReports.filter(cr => cr.usn === usn);
                     if (patientCaseReports.length > 0) {
                         const latestCaseReport = patientCaseReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
@@ -3659,6 +3785,14 @@
                     if (patientCaseReports.length > 0) {
                         const latestCaseReport = patientCaseReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
                         setRefusalFormData(prev => ({ ...prev, caseReportId: latestCaseReport.reportNumber }));
+                    }
+                } else if (formType === 'referral') {
+                    setReferralFormData(prev => ({ ...prev, usn }));
+
+                    const patientCaseReports = safeCaseReports.filter(cr => cr.usn === usn);
+                    if (patientCaseReports.length > 0) {
+                        const latestCaseReport = patientCaseReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+                        setReferralFormData(prev => ({ ...prev, incidentReportId: latestCaseReport.reportNumber }));
                     }
                 }
             };
@@ -3682,6 +3816,12 @@
                     return p.usn.toLowerCase().includes(t) || p.fullName.toLowerCase().includes(t);
                 })
                 : safePatients;
+            const filteredReferralPatients = referralSearchTerm
+                ? safePatients.filter(p => {
+                    const t = referralSearchTerm.toLowerCase();
+                    return p.usn.toLowerCase().includes(t) || p.fullName.toLowerCase().includes(t);
+                })
+                : safePatients;
 
             const selectCasePatient = (patient) => {
                 setFormData(prev => ({ ...prev, usn: patient.usn }));
@@ -3693,7 +3833,7 @@
                 setSickFormData(prev => ({ ...prev, usn: patient.usn }));
                 setSelectedPatientDetails(patient);
                 setSickSearchTerm(`${patient.usn} - ${patient.fullName}`);
-                // Auto-populate case report id
+                    // Auto-populate incident report id
                 const patientCaseReports = safeCaseReports.filter(cr => cr.usn === patient.usn);
                 if (patientCaseReports.length > 0) {
                     const latestCaseReport = patientCaseReports.sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))[0];
@@ -3712,6 +3852,17 @@
                 }
                 setShowRefusalPatientDropdown(false);
             };
+            const selectReferralPatient = (patient) => {
+                setReferralFormData(prev => ({ ...prev, usn: patient.usn }));
+                setSelectedPatientDetails(patient);
+                setReferralSearchTerm(`${patient.usn} - ${patient.fullName}`);
+                const patientCaseReports = safeCaseReports.filter(cr => cr.usn === patient.usn);
+                if (patientCaseReports.length > 0) {
+                    const latestCaseReport = patientCaseReports.sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))[0];
+                    setReferralFormData(prev => ({ ...prev, incidentReportId: latestCaseReport.reportNumber }));
+                }
+                setShowReferralPatientDropdown(false);
+            };
 
             const counsellingOptions = [
                 'Explained recommended treatment plan',
@@ -3728,6 +3879,16 @@
                         ? prev.counsellingChecklist.filter(item => item !== option)
                         : [...prev.counsellingChecklist, option];
                     return { ...prev, counsellingChecklist: updated };
+                });
+            };
+
+            const toggleReferralDocument = (label) => {
+                setReferralFormData(prev => {
+                    const alreadyIncluded = prev.documentsProvided.includes(label);
+                    const updatedDocuments = alreadyIncluded
+                        ? prev.documentsProvided.filter(item => item !== label)
+                        : [...prev.documentsProvided, label];
+                    return { ...prev, documentsProvided: updatedDocuments };
                 });
             };
 
@@ -3806,6 +3967,22 @@
                     ...record,
                     consentTerms: record.consentTerms || CONSENT_TERMS_TEMPLATE
                 }));
+            const normalizedReferrals = safeReferrals
+                .map(normalizeReferralRecord)
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const filteredReferrals = normalizedReferrals.filter(referral => {
+                const term = (referralListSearch || '').trim().toLowerCase();
+                if (!term) return true;
+                return [
+                    referral.referralNumber,
+                    referral.patientName,
+                    referral.usn,
+                    referral.destinationName,
+                    referral.destinationDepartment,
+                    referral.contactPerson,
+                    referral.reason
+                ].some(field => (field || '').toString().toLowerCase().includes(term));
+            });
 
             const severityBadgeClass = {
                 low: 'bg-green-100 text-green-700',
@@ -3813,9 +3990,28 @@
                 high: 'bg-orange-100 text-orange-700',
                 critical: 'bg-red-100 text-red-700'
             };
+            const priorityBadgeClass = {
+                routine: 'bg-sky-100 text-sky-700',
+                urgent: 'bg-amber-100 text-amber-700',
+                emergency: 'bg-red-100 text-red-700'
+            };
+            const referralStatusBadgeClass = {
+                pending: 'bg-yellow-100 text-yellow-700',
+                scheduled: 'bg-blue-100 text-blue-700',
+                confirmed: 'bg-blue-100 text-blue-700',
+                active: 'bg-sky-100 text-sky-700',
+                completed: 'bg-green-100 text-green-700',
+                closed: 'bg-green-100 text-green-700',
+                cancelled: 'bg-red-100 text-red-700'
+            };
 
             const formatSeverityLabel = (value = 'moderate') => {
                 const label = (value || 'moderate').toString();
+                return label.charAt(0).toUpperCase() + label.slice(1);
+            };
+            const formatTitleCase = (value = '') => {
+                const label = (value || '').toString();
+                if (!label) return '';
                 return label.charAt(0).toUpperCase() + label.slice(1);
             };
 
@@ -3824,6 +4020,7 @@
                     if (!e.target.closest('.case-patient-search')) setShowCasePatientDropdown(false);
                     if (!e.target.closest('.sick-patient-search')) setShowSickPatientDropdown(false);
                     if (!e.target.closest('.refusal-patient-search')) setShowRefusalPatientDropdown(false);
+                    if (!e.target.closest('.referral-patient-search')) setShowReferralPatientDropdown(false);
                 };
                 document.addEventListener('click', onDocClick);
                 return () => document.removeEventListener('click', onDocClick);
@@ -3853,7 +4050,7 @@
                 });
             };
 
-            // Handle Case Report Submission
+            // Handle Incident Report Submission
             const handleCaseReportSubmit = async () => {
                 if (!formData.usn || !formData.diagnosis) {
                     alert('Please select a patient and provide treatment administered / diagnosis');
@@ -3915,9 +4112,9 @@
                 const syncResult = await syncWithDatabase('case-reports', dbCaseReportData);
                 
                 if (syncResult) {
-                    alert(`Case Report ${reportNumber} created and synced to database successfully!`);
+                    alert(`Incident Report ${reportNumber} created and synced to database successfully!`);
                 } else {
-                    alert(`Case Report ${reportNumber} created locally. Will sync to database when server is available.`);
+                    alert(`Incident Report ${reportNumber} created locally. Will sync to database when server is available.`);
                 }
 
                 // Reset form
@@ -3949,10 +4146,10 @@
                     return;
                 }
 
-                // Check if there's a valid case report for this patient
+                // Check if there's a valid incident report for this patient
                 const patientCaseReports = safeCaseReports.filter(cr => cr.usn === sickFormData.usn);
                 if (patientCaseReports.length === 0) {
-                    alert('Sick intimation can only be created if there is a valid case report for this patient. Please create a case report first.');
+                    alert('Sick intimation can only be created if there is a valid incident report for this patient. Please create an incident report first.');
                     return;
                 }
 
@@ -4195,6 +4392,108 @@
                 setSelectedPatientDetails(null);
             };
 
+            const handleReferralSubmit = async () => {
+                if (!referralFormData.usn || !referralFormData.destinationName || !referralFormData.reason) {
+                    alert('Please select a patient, choose a destination, and describe the referral reason.');
+                    return;
+                }
+
+                const patientDetails = safePatients.find(p => p.usn === referralFormData.usn) || selectedPatientDetails;
+
+                const patientCaseReports = safeCaseReports.filter(cr => cr.usn === referralFormData.usn);
+                const linkedIncident = referralFormData.incidentReportId || (patientCaseReports.length > 0
+                    ? patientCaseReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0].reportNumber
+                    : '');
+
+                let referralNumber = currentReferralNumber;
+                if (!referralNumber) {
+                    referralNumber = generateReferralNumber(linkedIncident);
+                    setCurrentReferralNumber(referralNumber);
+                }
+
+                const sanitizedDocuments = referralFormData.documentsProvided.filter(Boolean);
+
+                const referralRecord = {
+                    id: Date.now().toString(),
+                    referralNumber,
+                    usn: referralFormData.usn,
+                    patientName: patientDetails?.fullName || '',
+                    patientAge: patientDetails?.age || '',
+                    patientGender: patientDetails?.gender || '',
+                    referralDate: referralFormData.referralDate,
+                    referralType: referralFormData.referralType,
+                    priorityLevel: referralFormData.priorityLevel,
+                    incidentReportId: linkedIncident,
+                    destinationName: referralFormData.destinationName,
+                    destinationDepartment: referralFormData.destinationDepartment,
+                    contactPerson: referralFormData.contactPerson,
+                    contactNumber: referralFormData.contactNumber,
+                    reason: referralFormData.reason,
+                    appointmentDate: referralFormData.appointmentDate,
+                    transportMode: referralFormData.transportMode,
+                    escortRequired: referralFormData.escortRequired,
+                    escortName: referralFormData.escortName,
+                    escortContact: referralFormData.escortContact,
+                    documentsProvided: sanitizedDocuments,
+                    followUpPlan: referralFormData.followUpPlan,
+                    notes: referralFormData.notes,
+                    acknowledgementByPatient: referralFormData.acknowledgementByPatient,
+                    ackSignedName: referralFormData.ackSignedName,
+                    ackSignedUsn: referralFormData.ackSignedUsn,
+                    createdAt: new Date().toISOString(),
+                    status: 'Active'
+                };
+
+                const normalizedReferral = normalizeReferralRecord(referralRecord);
+                const updatedReferrals = [...safeReferrals, normalizedReferral];
+                setReferrals(updatedReferrals);
+                saveToStorage('referrals', updatedReferrals);
+
+                const referralSyncPayload = {
+                    referralNumber: normalizedReferral.referralNumber,
+                    usn: normalizedReferral.usn,
+                    patientName: normalizedReferral.patientName,
+                    patientAge: normalizedReferral.patientAge,
+                    patientGender: normalizedReferral.patientGender,
+                    referralDate: normalizedReferral.referralDate,
+                    referralType: normalizedReferral.referralType,
+                    priorityLevel: normalizedReferral.priorityLevel,
+                    incidentReportId: normalizedReferral.incidentReportId || null,
+                    destinationName: normalizedReferral.destinationName,
+                    destinationDepartment: normalizedReferral.destinationDepartment,
+                    contactPerson: normalizedReferral.contactPerson,
+                    contactNumber: normalizedReferral.contactNumber,
+                    reason: normalizedReferral.reason,
+                    appointmentDate: normalizedReferral.appointmentDate,
+                    transportMode: normalizedReferral.transportMode,
+                    escortRequired: normalizedReferral.escortRequired,
+                    escortName: normalizedReferral.escortName,
+                    escortContact: normalizedReferral.escortContact,
+                    documentsProvided: normalizedReferral.documentsProvided,
+                    followUpPlan: normalizedReferral.followUpPlan,
+                    notes: normalizedReferral.notes,
+                    acknowledgementByPatient: normalizedReferral.acknowledgementByPatient,
+                    ackSignedName: normalizedReferral.ackSignedName,
+                    ackSignedUsn: normalizedReferral.ackSignedUsn
+                };
+
+                const synced = await syncWithDatabase('referrals', referralSyncPayload);
+
+                if (synced) {
+                    alert(`Referral ${referralNumber} saved and synced successfully!`);
+                } else if (serverAvailable) {
+                    alert(`Referral ${referralNumber} saved locally. We'll retry syncing shortly.`);
+                } else {
+                    alert(`Referral ${referralNumber} stored locally. It will sync once the database is available.`);
+                }
+
+                setReferralFormData(createReferralInitialState());
+                setCurrentReferralNumber('');
+                setReferralSearchTerm('');
+                setReferralListSearch('');
+                setShowReferralPatientDropdown(false);
+            };
+
             // --- Print Helpers (safe and consistent) ---
             const escapeHtml = (value) => {
                 if (value === null || value === undefined) return '';
@@ -4230,7 +4529,7 @@
                                 <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675<br>Amrutha Varshini D +91 63625 88851</div>
                             </div>
                         </div>
-                        <h2 style="text-align:center;color:#333;margin:15px 0;">MEDICAL CASE REPORT</h2>
+                        <h2 style="text-align:center;color:#333;margin:15px 0;">MEDICAL INCIDENT REPORT</h2>
                     </div>`;
 
                 const patientInfo = `
@@ -4260,7 +4559,7 @@
                 const footer = `
                     <div class="footer">
                         <p><strong>New Horizon Sanjeevani Clinic</strong></p>
-                        <p>This case report is computer generated and contains confidential medical information.</p>
+                        <p>This incident report is computer generated and contains confidential medical information.</p>
                         <p>Report Number: ${escapeHtml(payload.reportNumber)} | Generated on: ${currentDate} at ${currentTime}</p>
                         <p style="margin-top:10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
                         <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
@@ -4272,7 +4571,7 @@
                 <head>
                     <meta charset="utf-8" />
                     <meta name="viewport" content="width=device-width, initial-scale=1" />
-                    <title>Case Report - ${escapeHtml(payload.patientName)}</title>
+                    <title>Incident Report - ${escapeHtml(payload.patientName)}</title>
                     <style>
                         /* Screen defaults */
                         body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:10px;color:#000}
@@ -4335,7 +4634,7 @@
                     </div>
                     <div class="page-number" aria-hidden="true"></div>
                     <div class="no-print" style="text-align:center;margin-top:20px;">
-                        <button class="btn" onclick="window.print()">🖨️ Print Case Report</button>
+                        <button class="btn" onclick="window.print()">🖨️ Print Incident Report</button>
                         <button class="btn" onclick="window.close()" style="background:#6c757d;">✕ Close</button>
                     </div>
                 </body>
@@ -4343,14 +4642,14 @@
                 return html;
             };
 
-            // --- Case Report: Print from current form ---
+            // --- Incident Report: Print from current form ---
             const printCaseReport = async () => {
                 if (!selectedPatientDetails || !formData.usn) {
                     alert('Please select a patient and fill the required fields');
                     return;
                 }
 
-                // Get the case report number from the latest saved report or generate new one
+                // Get the incident report number from the latest saved report or generate new one
                 let reportNumber = currentCaseReportNumber;
                 if (!reportNumber) {
                     const patientReports = safeCaseReports.filter(cr => cr.usn === formData.usn);
@@ -4441,14 +4740,14 @@
                     return;
                 }
 
-                // Check if there's a valid case report
+                // Check if there's a valid incident report
                 const patientCaseReports = safeCaseReports.filter(cr => cr.usn === sickFormData.usn);
                 if (patientCaseReports.length === 0) {
-                    alert('Sick intimation can only be created if there is a valid case report for this patient. Please create a case report first.');
+                    alert('Sick intimation can only be created if there is a valid incident report for this patient. Please create an incident report first.');
                     return;
                 }
 
-                // Get the linked case report number
+                // Get the linked incident report number
                 const linkedCaseReportNumber = sickFormData.caseReportId || patientCaseReports[0].reportNumber;
 
                 // Get the sick intimation number from the latest saved intimation or generate new one
@@ -4570,7 +4869,7 @@
 
                         <div class="certificate-number">
                             <strong>Certificate No:</strong> ${intimation.intimationNumber}<br>
-                            ${intimation.caseReportId ? `<strong>Linked Case Report:</strong> ${intimation.caseReportId}<br>` : ''}
+                            ${intimation.caseReportId ? `<strong>Linked Incident Report:</strong> ${intimation.caseReportId}<br>` : ''}
                             <strong>Date:</strong> ${new Date(intimation.issueDate).toLocaleDateString()}
                         </div>
 
@@ -4733,7 +5032,7 @@
 
                         <div class="certificate-number">
                             <strong>Certificate No:</strong> ${intimation.intimationNumber}<br>
-                            ${intimation.caseReportId ? `<strong>Linked Case Report:</strong> ${intimation.caseReportId}<br>` : ''}
+                            ${intimation.caseReportId ? `<strong>Linked Incident Report:</strong> ${intimation.caseReportId}<br>` : ''}
                             <strong>Date:</strong> ${new Date(intimation.issueDate).toLocaleDateString()}
                         </div>
 
@@ -4803,6 +5102,151 @@
                 printWindow.document.close();
                 printWindow.focus();
                 setTimeout(() => { printWindow.print(); }, 500);
+            };
+
+            const printReferralFromRecord = (referral) => {
+                const printWindow = window.open('', '_blank');
+                const generatedDate = new Date().toLocaleDateString();
+                const generatedTime = new Date().toLocaleTimeString();
+                const logoUrl = new URL('./nhce_25-scaled-1-2048x683.png', window.location.href).href;
+                const documents = ensureArray(referral.documentsProvided).filter(Boolean);
+
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8" />
+                        <title>Referral Note - ${referral.patientName || 'Patient'}</title>
+                        <style>
+                            @media print {
+                                @page { margin: 0.25in 0.35in; size: A4; }
+                                body { margin: 0; padding: 0.15in 0.25in; }
+                                .no-print { display: none !important; }
+                                img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                            }
+                            body { font-family: Arial, sans-serif; color: #1f2937; line-height: 1.4; font-size: 12px; max-width: 820px; margin: 0 auto; background: #fff; }
+                            .header { text-align: center; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 12px; }
+                            .header-content { display: flex; align-items: center; justify-content: center; gap: 18px; }
+                            .clinic-meta { text-align: left; }
+                            .clinic-name { font-size: 20px; font-weight: 700; color: #1d4ed8; margin-bottom: 4px; }
+                            .clinic-address { font-size: 12px; color: #4b5563; }
+                            .clinic-contact { font-size: 11px; color: #4b5563; margin-top: 4px; }
+                            .document-title { font-size: 16px; font-weight: 600; color: #111827; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
+                            .meta { display: flex; justify-content: space-between; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; background: #f9fafb; margin-bottom: 14px; }
+                            .meta div { font-size: 12px; }
+                            .section { margin-bottom: 14px; border: 1px solid #e5e7eb; border-radius: 6px; }
+                            .section-title { margin: 0; background: #f1f5f9; padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-size: 13px; color: #1f2937; }
+                            .section-body { padding: 10px 12px; }
+                            .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 14px; font-size: 12px; }
+                            .info-item span { display: block; font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+                            .info-item strong { font-size: 12px; color: #111827; }
+                            .list { margin: 0; padding-left: 18px; }
+                            .footer { text-align: center; font-size: 10px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 12px; margin-top: 18px; }
+                            .footer p { margin: 4px 0; }
+                            .no-print { text-align: center; margin-top: 16px; }
+                            .btn { background: #2563eb; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+                            .btn + .btn { margin-left: 8px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <div class="header-content">
+                                <img src="${logoUrl}" alt="NHCE Logo" style="height: 90px;" />
+                                <div class="clinic-meta">
+                                    <div class="clinic-name">New Horizon Sanjeevani Clinic</div>
+                                    <div class="clinic-address">New Horizon Knowledge Park, Outer Ring Rd, near Marathalli, Kaverappa Layout, Kadubeesanahalli, Bengaluru, Karnataka - 560103.</div>
+                                    <div class="clinic-contact">Contact : Manoj VRC Swami  +91 81472 91675 · Amrutha Varshini D +91 63625 88851</div>
+                                </div>
+                            </div>
+                            <div class="document-title">Referral Note</div>
+                        </div>
+
+                        <div class="meta">
+                            <div><strong>Referral No:</strong> ${referral.referralNumber || 'Not Assigned'}</div>
+                            <div><strong>Referral Date:</strong> ${referral.referralDate ? new Date(referral.referralDate).toLocaleDateString() : generatedDate}</div>
+                            <div><strong>Generated:</strong> ${generatedDate} · ${generatedTime}</div>
+                        </div>
+
+                        <div class="section">
+                            <h2 class="section-title">Patient Details</h2>
+                            <div class="section-body info-grid">
+                                <div class="info-item"><span>Patient Name</span><strong>${referral.patientName || '—'}</strong></div>
+                                <div class="info-item"><span>USN / Identifier</span><strong>${referral.usn || '—'}</strong></div>
+                                <div class="info-item"><span>Age</span><strong>${referral.patientAge || '—'}</strong></div>
+                                <div class="info-item"><span>Gender</span><strong>${formatTitleCase(referral.patientGender || '') || '—'}</strong></div>
+                                ${referral.incidentReportId ? `<div class="info-item"><span>Linked Incident</span><strong>${referral.incidentReportId}</strong></div>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h2 class="section-title">Referral Overview</h2>
+                            <div class="section-body info-grid">
+                                <div class="info-item"><span>Referral Type</span><strong>${formatTitleCase(referral.referralType || 'Hospital')}</strong></div>
+                                <div class="info-item"><span>Priority</span><strong>${formatTitleCase(referral.priorityLevel || 'Routine')}</strong></div>
+                                <div class="info-item"><span>Destination</span><strong>${referral.destinationName || '—'}</strong></div>
+                                <div class="info-item"><span>Department / Unit</span><strong>${referral.destinationDepartment || '—'}</strong></div>
+                                <div class="info-item"><span>Contact Person</span><strong>${referral.contactPerson || '—'}</strong></div>
+                                <div class="info-item"><span>Contact Number</span><strong>${referral.contactNumber || '—'}</strong></div>
+                                <div class="info-item"><span>Appointment Date</span><strong>${referral.appointmentDate ? new Date(referral.appointmentDate).toLocaleDateString() : '—'}</strong></div>
+                                <div class="info-item"><span>Transport Mode</span><strong>${referral.transportMode || '—'}</strong></div>
+                                <div class="info-item"><span>Escort Required</span><strong>${referral.escortRequired ? 'Yes' : 'No'}</strong></div>
+                                ${referral.escortRequired ? `<div class="info-item"><span>Escort Name</span><strong>${referral.escortName || '—'}</strong></div>` : ''}
+                                ${referral.escortRequired ? `<div class="info-item"><span>Escort Contact</span><strong>${referral.escortContact || '—'}</strong></div>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h2 class="section-title">Clinical Notes</h2>
+                            <div class="section-body">
+                                <p><strong>Reason for Referral:</strong></p>
+                                <p>${referral.reason || '—'}</p>
+                                <p style="margin-top:10px;"><strong>Follow-up Plan:</strong></p>
+                                <p>${referral.followUpPlan || '—'}</p>
+                                ${referral.notes ? `<p style="margin-top:10px;"><strong>Additional Notes:</strong></p><p>${referral.notes}</p>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h2 class="section-title">Documentation</h2>
+                            <div class="section-body">
+                                ${documents.length > 0 ? `
+                                    <ul class="list">
+                                        ${documents.map(doc => `<li>${doc}</li>`).join('')}
+                                    </ul>
+                                ` : '<p>No supporting documents recorded.</p>'}
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <h2 class="section-title">Acknowledgement</h2>
+                            <div class="section-body info-grid">
+                                <div class="info-item"><span>Patient / Guardian Acknowledged</span><strong>${referral.acknowledgementByPatient ? 'Yes' : 'No'}</strong></div>
+                                <div class="info-item"><span>Signed Name</span><strong>${referral.ackSignedName || '—'}</strong></div>
+                                <div class="info-item"><span>Signed Identifier</span><strong>${referral.ackSignedUsn || '—'}</strong></div>
+                                <div class="info-item"><span>Status</span><strong>${formatTitleCase(referral.status || 'Pending')}</strong></div>
+                            </div>
+                        </div>
+
+                        <div class="footer">
+                            <p><strong>New Horizon Sanjeevani Clinic</strong></p>
+                            <p>This referral note is computer generated and documents an official patient transfer recommendation.</p>
+                            <p>Referral No: ${referral.referralNumber || 'Pending'} | Generated on: ${generatedDate} at ${generatedTime}</p>
+                            <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
+                            <p style="margin-top:6px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                            <p style="margin-top:6px; font-weight:600; color:#1d4ed8;">Official internal clinical document — For exclusive use within New Horizon Education Institutions (NHEI). Unauthorized reproduction, distribution, or external circulation is prohibited.</p>
+                        </div>
+
+                        <div class="no-print">
+                            <button class="btn" onclick="window.print()">🖨️ Print Referral Note</button>
+                            <button class="btn" onclick="window.close()" style="background:#6b7280;">✕ Close</button>
+                        </div>
+                    </body>
+                    </html>
+                `);
+
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(() => { printWindow.print(); }, 400);
             };
 
             const printTreatmentRefusalFromRecord = (refusal) => {
@@ -4956,7 +5400,7 @@
                             <div class="info-grid">
                                 <div><span class="label">Date of Refusal:</span> ${formatDate(normalized.refusalDate, generatedDate)}</div>
                                 <div><span class="label">Recorded By:</span> ${escapeValue(normalized.doctorName || '—')}</div>
-                                <div><span class="label">Linked Case Report:</span> ${escapeValue(normalized.caseReportId || 'None')}</div>
+                                <div><span class="label">Linked Incident Report:</span> ${escapeValue(normalized.caseReportId || 'None')}</div>
                                 <div><span class="label">Severity Level:</span> ${severityBadge}</div>
                                 <div><span class="label">Incident Location:</span> ${escapeValue(normalized.location || 'Not recorded')}</div>
                                 <div><span class="label">Internal Identifier:</span> ${escapeValue(normalized.institutionIdentifier || '—')}</div>
@@ -5067,7 +5511,7 @@
                                 className={`px-4 py-2 font-medium ${subTab === 'case-report' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
                                 onClick={() => setSubTab('case-report')}
                             >
-                                📋 Case Report
+                                📋 Incident Report
                             </button>
                             <button
                                 className={`px-4 py-2 font-medium ${subTab === 'sick-intimation' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
@@ -5079,13 +5523,25 @@
                                 className={`px-4 py-2 font-medium ${subTab === 'case-mgmt' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
                                 onClick={() => setSubTab('case-mgmt')}
                             >
-                                📊 Case Management
+                                📊 Incident Management
                             </button>
                             <button
                                 className={`px-4 py-2 font-medium ${subTab === 'sick-mgmt' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
                                 onClick={() => setSubTab('sick-mgmt')}
                             >
                                 📋 Sick Management
+                            </button>
+                            <button
+                                className={`px-4 py-2 font-medium ${subTab === 'referral' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
+                                onClick={() => setSubTab('referral')}
+                            >
+                                🏥 Referral
+                            </button>
+                            <button
+                                className={`px-4 py-2 font-medium ${subTab === 'referral-mgmt' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
+                                onClick={() => setSubTab('referral-mgmt')}
+                            >
+                                📨 Referral Management
                             </button>
                             <button
                                 className={`px-4 py-2 font-medium ${subTab === 'treatment-refusal' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
@@ -5102,10 +5558,10 @@
                         </div>
                     </div>
 
-                    {/* Case Report Form */}
+                    {/* Incident Report Form */}
                     {subTab === 'case-report' && (
                         <div className="card">
-                            <h2 className="text-xl font-semibold mb-4">Medical Case Report</h2>
+                            <h2 className="text-xl font-semibold mb-4">Incident Report</h2>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                 <div>
@@ -5139,7 +5595,7 @@
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Report Type</label>
+                                    <label className="block text-sm font-medium mb-1">Incident Type</label>
                                     <select
                                         value={formData.reportType}
                                         onChange={(e) => setFormData(prev => ({ ...prev, reportType: e.target.value }))}
@@ -5286,7 +5742,7 @@
                                     className="btn btn-secondary"
                                     disabled={!formData.usn || !formData.diagnosis}
                                 >
-                                    💾 Save Case Report
+                                    💾 Save Incident Report
                                 </button>
                                 <button 
                                     type="button" 
@@ -5437,15 +5893,15 @@
                                 </div>
                             </div>
 
-                            {/* Case Report Selection for Sick Intimation */}
+                            {/* Incident Report Selection for Sick Intimation */}
                             <div className="mb-6">
-                                <label className="block text-sm font-medium mb-1">Linked Case Report</label>
+                                <label className="block text-sm font-medium mb-1">Linked Incident Report</label>
                                 <select
                                     value={sickFormData.caseReportId}
                                     onChange={(e) => setSickFormData(prev => ({ ...prev, caseReportId: e.target.value }))}
                                     className="form-input"
                                 >
-                                    <option value="">Auto-select latest case report</option>
+                                    <option value="">Auto-select latest incident report</option>
                                     {selectedPatientDetails && safeCaseReports
                                         .filter(cr => cr.usn === selectedPatientDetails.usn)
                                         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -5458,7 +5914,7 @@
                                 </select>
                                 {selectedPatientDetails && safeCaseReports.filter(cr => cr.usn === selectedPatientDetails.usn).length === 0 && (
                                     <p className="text-red-500 text-sm mt-1">
-                                        ⚠️ No case reports found for this patient. Please create a case report first.
+                                        ⚠️ No incident reports found for this patient. Please create an incident report first.
                                     </p>
                                 )}
                             </div>
@@ -5490,6 +5946,342 @@
                                 >
                                     🔧 Test DB Connection
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Referral Form */}
+                    {subTab === 'referral' && (
+                        <div className="card">
+                            <h2 className="text-xl font-semibold mb-2">Patient Referral</h2>
+                            <p className="text-sm text-gray-600 mb-6">Coordinate external care by capturing referral details, supporting documents, and patient acknowledgement.</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Select Patient *</label>
+                                    <div className="relative referral-patient-search">
+                                        <input
+                                            type="text"
+                                            value={referralSearchTerm}
+                                            onChange={(e) => {
+                                                setReferralSearchTerm(e.target.value);
+                                                setShowReferralPatientDropdown(true);
+                                                if (!e.target.value) {
+                                                    setReferralFormData(prev => ({ ...prev, usn: '', incidentReportId: '' }));
+                                                }
+                                            }}
+                                            onFocus={() => setShowReferralPatientDropdown(true)}
+                                            placeholder="Search patient by USN or name..."
+                                            className="form-input pr-8"
+                                        />
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 10-14 0 7 7 0 0014 0z" /></svg>
+                                        </div>
+                                        {showReferralPatientDropdown && filteredReferralPatients.length > 0 && (
+                                            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded shadow max-h-60 overflow-auto">
+                                                {filteredReferralPatients.slice(0, 10).map(p => (
+                                                    <div key={p.usn} onClick={() => selectReferralPatient(p)} className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                                                        <div className="font-medium">{p.fullName}</div>
+                                                        <div className="text-xs text-gray-600">{p.usn} • {p.age}y • {p.gender}</div>
+                                                    </div>
+                                                ))}
+                                                {filteredReferralPatients.length === 0 && (
+                                                    <div className="px-3 py-2 text-xs text-gray-500">No matches</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Referral Date *</label>
+                                        <input
+                                            type="date"
+                                            value={referralFormData.referralDate}
+                                            onChange={(e) => setReferralFormData(prev => ({ ...prev, referralDate: e.target.value }))}
+                                            className="form-input"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Referral Priority *</label>
+                                        <select
+                                            value={referralFormData.priorityLevel}
+                                            onChange={(e) => setReferralFormData(prev => ({ ...prev, priorityLevel: e.target.value }))}
+                                            className="form-input"
+                                        >
+                                            <option value="routine">Routine</option>
+                                            <option value="urgent">Urgent</option>
+                                            <option value="emergency">Emergency</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Referral Type *</label>
+                                    <select
+                                        value={referralFormData.referralType}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, referralType: e.target.value }))}
+                                        className="form-input"
+                                    >
+                                        <option value="hospital">Hospital / Emergency Care</option>
+                                        <option value="specialist">Specialist Consultation</option>
+                                        <option value="diagnostics">Diagnostics / Imaging</option>
+                                        <option value="counselling">Counselling / Wellness</option>
+                                        <option value="other">Other Support Service</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Linked Incident Report</label>
+                                    <select
+                                        value={referralFormData.incidentReportId}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, incidentReportId: e.target.value }))}
+                                        className="form-input"
+                                    >
+                                        <option value="">Auto-select latest incident report</option>
+                                        {referralFormData.usn && safeCaseReports
+                                            .filter(cr => cr.usn === referralFormData.usn)
+                                            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                            .map(report => (
+                                                <option key={report.reportNumber} value={report.reportNumber}>
+                                                    {report.reportNumber} • {new Date(report.reportDate).toLocaleDateString()} ({report.diagnosis || 'Diagnosis pending'})
+                                                </option>
+                                            ))}
+                                    </select>
+                                    {referralFormData.usn && safeCaseReports.filter(cr => cr.usn === referralFormData.usn).length === 0 && (
+                                        <p className="text-xs text-red-500 mt-1">No incident report found for this patient. Capture one to maintain traceability.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Destination Name *</label>
+                                    <input
+                                        type="text"
+                                        value={referralFormData.destinationName}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, destinationName: e.target.value }))}
+                                        className="form-input"
+                                        placeholder="Receiving hospital, clinic, or specialist"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Department / Specialty</label>
+                                    <input
+                                        type="text"
+                                        value={referralFormData.destinationDepartment}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, destinationDepartment: e.target.value }))}
+                                        className="form-input"
+                                        placeholder="e.g., Orthopedics, ENT, Diagnostics"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Contact Person</label>
+                                    <input
+                                        type="text"
+                                        value={referralFormData.contactPerson}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, contactPerson: e.target.value }))}
+                                        className="form-input"
+                                        placeholder="Receiving doctor or coordinator"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Contact Number / Email</label>
+                                    <input
+                                        type="text"
+                                        value={referralFormData.contactNumber}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, contactNumber: e.target.value }))}
+                                        className="form-input"
+                                        placeholder="Phone number or email"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Reason for Referral *</label>
+                                    <textarea
+                                        value={referralFormData.reason}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, reason: e.target.value }))}
+                                        rows="3"
+                                        className="form-input"
+                                        placeholder="Summarize clinical justification and expectations"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Supporting Documents Shared</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        {REFERRAL_DOCUMENT_OPTIONS.map(option => (
+                                            <label key={option} className="flex items-center text-sm bg-white border border-gray-200 rounded px-3 py-2 shadow-sm">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={referralFormData.documentsProvided.includes(option)}
+                                                    onChange={() => toggleReferralDocument(option)}
+                                                    className="mr-2"
+                                                />
+                                                <span>{option}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Scheduled Appointment</label>
+                                    <input
+                                        type="date"
+                                        value={referralFormData.appointmentDate}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, appointmentDate: e.target.value }))}
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Transport Mode / Arrangement</label>
+                                    <input
+                                        type="text"
+                                        value={referralFormData.transportMode}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, transportMode: e.target.value }))}
+                                        className="form-input"
+                                        placeholder="Ambulance, self-arranged, college vehicle, etc."
+                                    />
+                                </div>
+                                <div className="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={referralFormData.escortRequired}
+                                        onChange={(e) => setReferralFormData(prev => ({
+                                            ...prev,
+                                            escortRequired: e.target.checked,
+                                            escortName: e.target.checked ? prev.escortName : '',
+                                            escortContact: e.target.checked ? prev.escortContact : ''
+                                        }))}
+                                        className="mr-2"
+                                        id="escortRequired"
+                                    />
+                                    <label htmlFor="escortRequired" className="text-sm font-medium">Escort / Guardian accompanying</label>
+                                </div>
+                            </div>
+
+                            {referralFormData.escortRequired && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Escort / Guardian Name</label>
+                                        <input
+                                            type="text"
+                                            value={referralFormData.escortName}
+                                            onChange={(e) => setReferralFormData(prev => ({ ...prev, escortName: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="Person accompanying the patient"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Escort Contact</label>
+                                        <input
+                                            type="text"
+                                            value={referralFormData.escortContact}
+                                            onChange={(e) => setReferralFormData(prev => ({ ...prev, escortContact: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="Phone or email"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Follow-up Plan</label>
+                                    <textarea
+                                        value={referralFormData.followUpPlan}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, followUpPlan: e.target.value }))}
+                                        rows="3"
+                                        className="form-input"
+                                        placeholder="Outline post-referral checks, calls, or visits"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Internal Notes</label>
+                                    <textarea
+                                        value={referralFormData.notes}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, notes: e.target.value }))}
+                                        rows="3"
+                                        className="form-input"
+                                        placeholder="Clinic-only observations or special instructions"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="border border-blue-200 rounded-md p-4 bg-blue-50 mb-6">
+                                <h3 className="text-sm font-semibold text-blue-700 mb-3">Patient / Guardian Acknowledgement</h3>
+                                <label className="flex items-start text-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={referralFormData.acknowledgementByPatient}
+                                        onChange={(e) => setReferralFormData(prev => ({ ...prev, acknowledgementByPatient: e.target.checked }))}
+                                        className="mr-2 mt-1"
+                                    />
+                                    <span>I have explained the referral recommendation, destination details, and any required follow-up steps to the patient/guardian.</span>
+                                </label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Patient / Guardian Name</label>
+                                        <input
+                                            type="text"
+                                            value={referralFormData.ackSignedName}
+                                            onChange={(e) => setReferralFormData(prev => ({ ...prev, ackSignedName: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="Person acknowledging the referral"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">USN / ID Reference</label>
+                                        <input
+                                            type="text"
+                                            value={referralFormData.ackSignedUsn}
+                                            onChange={(e) => setReferralFormData(prev => ({ ...prev, ackSignedUsn: e.target.value }))}
+                                            className="form-input"
+                                            placeholder="USN, guardian ID, or relation"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-6 flex flex-wrap items-center gap-4">
+                                <button
+                                    onClick={handleReferralSubmit}
+                                    className="btn btn-secondary"
+                                    disabled={!referralFormData.usn || !referralFormData.destinationName || !referralFormData.reason}
+                                >
+                                    💾 Save Referral
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={async () => {
+                                        console.log('Testing database connection...');
+                                        const isHealthy = await checkServerHealth();
+                                        console.log('Server health check result:', isHealthy);
+                                        serverAvailable = isHealthy;
+
+                                        if (isHealthy) {
+                                            alert('✅ Database connection successful!');
+                                        } else {
+                                            alert('❌ Database connection failed. Please ensure the Python server is running on localhost:5000');
+                                        }
+                                    }}
+                                    className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                                >
+                                    🔧 Test DB Connection
+                                </button>
+                                {currentReferralNumber && (
+                                    <div className="text-sm text-gray-600">
+                                        Last recorded referral: <span className="font-mono">{currentReferralNumber}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -5561,13 +6353,13 @@
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Linked Case Report (optional)</label>
+                                    <label className="block text-sm font-medium mb-1">Linked Incident Report (optional)</label>
                                     <select
                                         value={refusalFormData.caseReportId}
                                         onChange={(e) => setRefusalFormData(prev => ({ ...prev, caseReportId: e.target.value }))}
                                         className="form-input"
                                     >
-                                        <option value="">No linked case report</option>
+                                        <option value="">No linked incident report</option>
                                         {refusalFormData.usn && safeCaseReports
                                             .filter(cr => cr.usn === refusalFormData.usn)
                                             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -5998,17 +6790,17 @@
                         </div>
                     )}
 
-                    {/* Case Report Management */}
+                    {/* Incident Report Management */}
                     {subTab === 'case-mgmt' && (
                         <div className="space-y-6">
                             <div className="card">
-                                <h2 className="text-xl font-semibold mb-4">Case Report Management</h2>
-                                <p className="text-gray-600 mb-4">Manage all case reports with printing functionality</p>
+                                <h2 className="text-xl font-semibold mb-4">Incident Report Management</h2>
+                                <p className="text-gray-600 mb-4">Manage all incident reports with printing functionality</p>
                                 
                                 <div className="mb-6">
                                     <input
                                         type="text"
-                                        placeholder="Search by patient name, USN, or report number..."
+                                        placeholder="Search by patient name, USN, or incident report number..."
                                         className="form-input w-full max-w-md"
                                         value={formData.searchTerm || ''}
                                         onChange={(e) => setFormData(prev => ({ ...prev, searchTerm: e.target.value }))}
@@ -6019,7 +6811,7 @@
                                     <table className="min-w-full table-auto border-collapse border border-gray-300">
                                         <thead>
                                             <tr className="bg-gray-100">
-                                                <th className="border border-gray-300 px-4 py-2">Report No.</th>
+                                                <th className="border border-gray-300 px-4 py-2">Incident No.</th>
                                                 <th className="border border-gray-300 px-4 py-2">Patient Name</th>
                                                 <th className="border border-gray-300 px-4 py-2">USN</th>
                                                 <th className="border border-gray-300 px-4 py-2">Date</th>
@@ -6060,7 +6852,7 @@
                                     </table>
                                     {safeCaseReports.length === 0 && (
                                         <div className="text-center py-8 text-gray-500">
-                                            No case reports found. Create a case report to see it here.
+                                            No incident reports found. Create an incident report to see it here.
                                         </div>
                                     )}
                                 </div>
@@ -6133,6 +6925,150 @@
                                     {safeSickIntimations.length === 0 && (
                                         <div className="text-center py-8 text-gray-500">
                                             No sick intimations found. Create a sick leave certificate to see it here.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {subTab === 'referral-mgmt' && (
+                        <div className="space-y-6">
+                            <div className="card">
+                                <h2 className="text-xl font-semibold mb-4">Referral Management</h2>
+                                <p className="text-gray-600 mb-4">Review, search, and print referral records created by the clinic team.</p>
+
+                                <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <input
+                                        type="text"
+                                        placeholder="Search by patient name, USN, referral number, or destination..."
+                                        className="form-input w-full md:max-w-xl"
+                                        value={referralListSearch}
+                                        onChange={(e) => setReferralListSearch(e.target.value)}
+                                    />
+                                    <div className="text-sm text-gray-500">
+                                        Showing {filteredReferrals.length} of {normalizedReferrals.length} referral{normalizedReferrals.length === 1 ? '' : 's'}
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full table-auto border-collapse border border-gray-300">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Referral No.</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Patient</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Type & Priority</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Destination</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Referral Date</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Documents</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Status / Acknowledgement</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredReferrals.map(referral => {
+                                                const priorityKey = (referral.priorityLevel || 'routine').toString().toLowerCase();
+                                                const statusRaw = (referral.status || 'Pending').toString();
+                                                const statusKey = statusRaw.toLowerCase();
+                                                const documents = ensureArray(referral.documentsProvided).filter(Boolean);
+                                                return (
+                                                    <tr key={referral.id || referral.referralNumber} className="align-top">
+                                                        <td className="border border-gray-300 px-4 py-3">
+                                                            <div className="font-mono text-sm font-semibold">{referral.referralNumber || 'Pending'}</div>
+                                                            {referral.incidentReportId ? (
+                                                                <div className="text-xs text-gray-500 mt-1">Linked Incident: {referral.incidentReportId}</div>
+                                                            ) : null}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-3">
+                                                            <div className="font-medium text-gray-900">{referral.patientName || 'Unknown Patient'}</div>
+                                                            <div className="text-xs text-gray-500 mt-1">USN: {referral.usn || '—'}</div>
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-3">
+                                                            <div className="text-sm font-medium text-gray-800">{formatTitleCase(referral.referralType || 'Hospital')}</div>
+                                                            <div className="mt-2">
+                                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${priorityBadgeClass[priorityKey] || 'bg-gray-100 text-gray-700'}`}>
+                                                                    {formatTitleCase(referral.priorityLevel || 'Routine')}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-3">
+                                                            <div className="font-medium text-gray-900">{referral.destinationName || '—'}</div>
+                                                            {referral.destinationDepartment ? (
+                                                                <div className="text-xs text-gray-500 mt-1">Dept: {referral.destinationDepartment}</div>
+                                                            ) : null}
+                                                            {referral.contactPerson ? (
+                                                                <div className="text-xs text-gray-500 mt-1">Contact: {referral.contactPerson}{referral.contactNumber ? ` · ${referral.contactNumber}` : ''}</div>
+                                                            ) : referral.contactNumber ? (
+                                                                <div className="text-xs text-gray-500 mt-1">Phone: {referral.contactNumber}</div>
+                                                            ) : null}
+                                                            {referral.appointmentDate ? (
+                                                                <div className="text-xs text-gray-500 mt-1">Appt: {new Date(referral.appointmentDate).toLocaleDateString()}</div>
+                                                            ) : null}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-3 text-sm text-gray-800">
+                                                            {referral.referralDate ? new Date(referral.referralDate).toLocaleDateString() : '—'}
+                                                            {referral.transportMode ? (
+                                                                <div className="text-xs text-gray-500 mt-1">Transport: {referral.transportMode}</div>
+                                                            ) : null}
+                                                            {referral.escortRequired ? (
+                                                                <div className="text-xs text-gray-500 mt-1">Escort: {referral.escortName || 'Required'}{referral.escortContact ? ` · ${referral.escortContact}` : ''}</div>
+                                                            ) : null}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-3">
+                                                            {documents.length > 0 ? (
+                                                                <>
+                                                                    <div className="text-sm font-medium text-gray-800">{documents.length} item{documents.length > 1 ? 's' : ''}</div>
+                                                                    <div className="text-xs text-gray-500 mt-1 max-w-[180px] truncate" title={documents.join(', ')}>
+                                                                        {documents.join(', ')}
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <span className="text-sm text-gray-500">None recorded</span>
+                                                            )}
+                                                            {referral.followUpPlan ? (
+                                                                <div className="text-xs text-gray-500 mt-2 max-w-[180px] truncate" title={referral.followUpPlan}>
+                                                                    Follow-up: {referral.followUpPlan}
+                                                                </div>
+                                                            ) : null}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-3">
+                                                            <div>
+                                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${referralStatusBadgeClass[statusKey] || 'bg-gray-100 text-gray-700'}`}>
+                                                                    {formatTitleCase(statusRaw || 'Pending')}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-2">
+                                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${referral.acknowledgementByPatient ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                                    {referral.acknowledgementByPatient ? 'Acknowledged' : 'Pending'}
+                                                                </span>
+                                                            </div>
+                                                            {referral.ackSignedName ? (
+                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                    {referral.ackSignedName}
+                                                                    {referral.ackSignedUsn ? ` · ${referral.ackSignedUsn}` : ''}
+                                                                </div>
+                                                            ) : null}
+                                                        </td>
+                                                        <td className="border border-gray-300 px-4 py-3">
+                                                            <div className="flex flex-col gap-2">
+                                                                <button
+                                                                    onClick={() => printReferralFromRecord(referral)}
+                                                                    className="btn btn-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
+                                                                >
+                                                                    🖨️ Print
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {filteredReferrals.length === 0 && (
+                                        <div className="text-center py-8 text-gray-500">
+                                            {normalizedReferrals.length === 0
+                                                ? 'No referrals recorded yet. Submit a referral to view it here.'
+                                                : 'No referrals match the current search filters.'}
                                         </div>
                                     )}
                                 </div>
@@ -6262,6 +7198,9 @@
             const [treatmentRefusals, setTreatmentRefusals] = useState(() =>
                 ensureArray(loadFromStorage('treatmentRefusals', [])).map(normalizeTreatmentRefusalRecord)
             );
+            const [referrals, setReferrals] = useState(() =>
+                ensureArray(loadFromStorage('referrals', [])).map(normalizeReferralRecord)
+            );
             const [selectedPatient, setSelectedPatient] = useState(null);
             const [activeTab, setActiveTab] = useState('dashboard');
             // Scroll to top whenever active tab changes for better UX after quick actions
@@ -6288,6 +7227,7 @@
                 caseReports: caseReports?.length || 0,
                 sickIntimations: sickIntimations?.length || 0,
                 treatmentRefusals: treatmentRefusals?.length || 0,
+                referrals: referrals?.length || 0,
                 activeTab,
                 dbConnected
             });
@@ -6303,6 +7243,7 @@
                         setCaseReports(restored.caseReports || []);
                         setSickIntimations(restored.sickIntimations || []);
                         setTreatmentRefusals(ensureArray(restored.treatmentRefusals).map(normalizeTreatmentRefusalRecord));
+                        setReferrals(ensureArray(restored.referrals).map(normalizeReferralRecord));
                         setHasBackup(false);
                         alert('Backup data restored successfully!');
                     }
@@ -6610,7 +7551,7 @@
                                     onClick={() => setActiveTab('case-report')}
                                     id="case-report-tab"
                                 >
-                                    Case Report
+                                    Incident Report
                                 </button>
                                 <button
                                     className={`tab ${activeTab === 'schedule' ? 'active' : ''}`}
@@ -6702,6 +7643,8 @@
                                 setSickIntimations={setSickIntimations}
                                 treatmentRefusals={treatmentRefusals}
                                 setTreatmentRefusals={setTreatmentRefusals}
+                                referrals={referrals}
+                                setReferrals={setReferrals}
                             />
                         )}
 
