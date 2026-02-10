@@ -270,7 +270,7 @@
                 const offlinePrescriptions = loadFromStorage('prescriptions', []);
                 const offlineCaseReports = loadFromStorage('caseReports', []);
                 const offlineSickIntimations = loadFromStorage('sickIntimations', []);
-                const offlineTreatmentRefusals = loadFromStorage('treatmentRefusals', []);
+                const offlineTreatmentRefusals = ensureArray(loadFromStorage('treatmentRefusals', []));
 
                 // Create backup before sync
                 if (offlinePatients.length > 0 || offlineVitals.length > 0 || offlinePrescriptions.length > 0 || 
@@ -483,6 +483,7 @@
                         console.log(`Bulk synced ${result.synced_count}/${result.total_received} treatment refusals`);
                     } catch (error) {
                         console.warn('Failed to bulk sync treatment refusals:', error);
+                        const remaining = [];
                         for (const refusal of offlineTreatmentRefusals) {
                             try {
                                 await apiRequest('/api/treatment-refusals', {
@@ -492,9 +493,11 @@
                                 syncResults.treatmentRefusals.synced++;
                             } catch (err) {
                                 console.warn(`Failed to sync treatment refusal ${refusal.refusalNumber}:`, err);
+                                remaining.push(refusal);
                             }
                         }
                         syncResults.treatmentRefusals.total = offlineTreatmentRefusals.length;
+                        saveToStorage('treatmentRefusals', remaining.map(normalizeTreatmentRefusalRecord));
                     }
                 }
 
@@ -580,14 +583,27 @@
             }
         };
 
+        const ensureArray = (value) => {
+            if (Array.isArray(value)) {
+                return value.filter(item => item !== null && item !== undefined);
+            }
+            if (value && typeof value === 'object') {
+                return Object.values(value).filter(item => item !== null && item !== undefined);
+            }
+            return [];
+        };
+
         // Merge arrays utility - prioritizes newer data based on timestamps and local modifications
         const mergeArrays = (localArray, serverArray, keyField) => {
+            const localItems = ensureArray(localArray);
+            const serverItems = ensureArray(serverArray);
             const merged = [];
             const processedKeys = new Set();
-            
+
             // Create a map of server items for quick lookup
             const serverMap = new Map();
-            serverArray.forEach(item => {
+            serverItems.forEach(item => {
+                if (!item || item[keyField] === undefined || item[keyField] === null) return;
                 serverMap.set(item[keyField], item);
             });
             
@@ -601,7 +617,7 @@
             console.log('Recently modified prescriptions (protected from server override):', recentlyModified);
             
             // Process local items first (they might have newer updates)
-            localArray.forEach(localItem => {
+            localItems.forEach(localItem => {
                 const key = localItem[keyField];
                 const serverItem = serverMap.get(key);
                 const isRecentlyModified = recentlyModified.includes(key);
@@ -643,7 +659,7 @@
             });
             
             // Add server items that don't exist locally
-            serverArray.forEach(serverItem => {
+            serverItems.forEach(serverItem => {
                 const key = serverItem[keyField];
                 if (!processedKeys.has(key)) {
                     merged.push(serverItem);
@@ -652,6 +668,166 @@
             
             return merged;
         };
+
+        const toBool = (value) => {
+            if (typeof value === 'string') {
+                const normalized = value.trim().toLowerCase();
+                if (normalized === '1' || normalized === 'true' || normalized === 'yes') return true;
+                if (normalized === '0' || normalized === 'false' || normalized === 'no') return false;
+            }
+            return value === true || value === 1;
+        };
+
+        const parseJsonArray = (value) => {
+            if (!value && value !== 0) return [];
+            if (Array.isArray(value)) return value;
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (!trimmed) return [];
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    return [];
+                }
+            }
+            if (value && typeof value === 'object') {
+                return ensureArray(value);
+            }
+            return [];
+        };
+
+        const normalizeTreatmentRefusalRecord = (record = {}) => {
+            if (!record || typeof record !== 'object') return {};
+
+            const checklist = parseJsonArray(record.counsellingChecklist || record.counsellingSteps || record.counselling_checklist);
+            const additionalWitnesses = parseJsonArray(record.additionalWitnesses || record.additional_witnesses).map(witness => ({
+                name: witness?.name || '',
+                relation: witness?.relation || '',
+                contact: witness?.contact || ''
+            })).filter(witness => witness.name || witness.relation || witness.contact);
+            const additionalIdentifiers = parseJsonArray(record.additionalIdentifiers || record.additional_identifiers).map(identifier => ({
+                type: identifier?.type || '',
+                value: identifier?.value || ''
+            })).filter(identifier => identifier.type || identifier.value);
+            const attachments = parseJsonArray(record.attachments || record.attachments_list).map(attachment => ({
+                description: attachment?.description || '',
+                reference: attachment?.reference || ''
+            })).filter(attachment => attachment.description || attachment.reference);
+
+            const normalized = {
+                ...record,
+                severityLevel: record.severityLevel || record.severity_level || 'moderate',
+                location: record.location || '',
+                counsellingSummary: record.counsellingSummary || record.counselling_summary || '',
+                followUpDate: record.followUpDate || record.follow_up_date || '',
+                followUpActions: record.followUpActions || record.follow_up_actions || '',
+                witnessName: record.witnessName || record.witness_name || '',
+                witnessContact: record.witnessContact || record.witness_contact || '',
+                notes: record.notes || '',
+                doctorRemarks: record.doctorRemarks || record.doctor_remarks || '',
+                consentSignedName: record.consentSignedName || record.consent_signed_name || '',
+                consentSignedUsn: record.consentSignedUsn || record.consent_signed_usn || '',
+                consentTerms: record.consentTerms || record.consent_terms || '',
+                institutionIdentifier: record.institutionIdentifier || record.institution_identifier || '',
+                externalReference: record.externalReference || record.external_reference || '',
+                createdAt: record.createdAt || record.created_at || new Date().toISOString(),
+                status: record.status || 'Active'
+            };
+
+            if (!normalized.counsellingSummary && checklist.length > 0) {
+                normalized.counsellingSummary = `Checklist: ${checklist.join('; ')}`;
+            }
+
+            normalized.counsellingChecklist = checklist;
+            normalized.additionalWitnesses = additionalWitnesses;
+            normalized.additionalIdentifiers = additionalIdentifiers;
+            normalized.attachments = attachments;
+            normalized.followUpRequired = toBool(record.followUpRequired ?? record.follow_up_required);
+            normalized.consentAcknowledged = toBool(record.consentAcknowledged ?? record.consent_acknowledged);
+
+            return normalized;
+        };
+
+        const mapCaseReportFromServer = (record = {}) => ({
+            id: record.id ?? record.ID ?? null,
+            reportNumber: record.report_number || record.reportNumber || '',
+            usn: record.usn || '',
+            patientName: record.patient_name || record.patientName || '',
+            patientAge: record.patient_age ?? record.patientAge ?? null,
+            patientGender: record.patient_gender || record.patientGender || '',
+            reportType: record.report_type || record.reportType || 'medical',
+            chiefComplaint: record.chief_complaint || record.chiefComplaint || '',
+            historyOfPresentIllness: record.history_of_present_illness || record.historyOfPresentIllness || '',
+            pastMedicalHistory: record.past_medical_history || record.pastMedicalHistory || '',
+            familyHistory: record.family_history || record.familyHistory || '',
+            socialHistory: record.social_history || record.socialHistory || '',
+            physicalExamination: record.physical_examination || record.physicalExamination || '',
+            investigations: record.investigations || '',
+            diagnosis: record.diagnosis || '',
+            treatment: record.treatment || '',
+            prognosis: record.prognosis || '',
+            recommendations: record.recommendations || '',
+            followUp: record.follow_up || record.followUp || '',
+            doctorName: record.doctor_name || record.doctorName || '',
+            reportDate: record.report_date || record.reportDate || '',
+            status: record.status || 'Active',
+            createdAt: record.created_at || record.createdAt || new Date().toISOString()
+        });
+
+        const mapSickIntimationFromServer = (record = {}) => ({
+            id: record.id ?? record.ID ?? null,
+            intimationNumber: record.intimation_number || record.intimationNumber || '',
+            usn: record.usn || '',
+            patientName: record.patient_name || record.patientName || '',
+            patientAge: record.patient_age ?? record.patientAge ?? null,
+            patientGender: record.patient_gender || record.patientGender || '',
+            caseReportId: record.case_report_id || record.caseReportId || '',
+            sickLeaveFrom: record.sick_leave_from || record.sickLeaveFrom || '',
+            sickLeaveTo: record.sick_leave_to || record.sickLeaveTo || '',
+            totalDays: record.total_days ?? record.totalDays ?? '',
+            reason: record.reason || '',
+            symptoms: record.symptoms || '',
+            restRecommended: toBool(record.rest_recommended ?? record.restRecommended ?? true),
+            doctorName: record.doctor_name || record.doctorName || '',
+            issueDate: record.issue_date || record.issueDate || '',
+            status: record.status || 'Active',
+            createdAt: record.created_at || record.createdAt || new Date().toISOString()
+        });
+
+        const mapTreatmentRefusalFromServer = (record = {}) => normalizeTreatmentRefusalRecord({
+            id: record.id ?? record.ID ?? null,
+            refusalNumber: record.refusal_number || record.refusalNumber || '',
+            usn: record.usn || '',
+            patientName: record.patient_name || record.patientName || '',
+            patientAge: record.patient_age ?? record.patientAge ?? null,
+            patientGender: record.patient_gender || record.patientGender || '',
+            caseReportId: record.case_report_id || record.caseReportId || '',
+            refusalDate: record.refusal_date || record.refusalDate || '',
+            reason: record.reason || '',
+            risksExplained: record.risks_explained || record.risksExplained || '',
+            witnessName: record.witness_name || record.witnessName || '',
+            witnessContact: record.witness_contact || record.witnessContact || '',
+            doctorName: record.doctor_name || record.doctorName || '',
+            status: record.status || 'Active',
+            severityLevel: record.severity_level || record.severityLevel || 'moderate',
+            counsellingSummary: record.counselling_summary || record.counsellingSummary || '',
+            followUpRequired: record.follow_up_required ?? record.followUpRequired ?? false,
+            followUpDate: record.follow_up_date || record.followUpDate || '',
+            followUpActions: record.follow_up_actions || record.followUpActions || '',
+            consentAcknowledged: record.consent_acknowledged ?? record.consentAcknowledged ?? false,
+            consentSignedName: record.consent_signed_name || record.consentSignedName || '',
+            consentSignedUsn: record.consent_signed_usn || record.consentSignedUsn || '',
+            consentTerms: record.consent_terms || record.consentTerms || '',
+            doctorRemarks: record.doctor_remarks || record.doctorRemarks || '',
+            additionalIdentifiers: record.additional_identifiers ?? record.additionalIdentifiers ?? [],
+            attachments: record.attachments ?? record.attachments_list ?? [],
+            additionalWitnesses: record.additional_witnesses ?? record.additionalWitnesses ?? [],
+            institutionIdentifier: record.institution_identifier || record.institutionIdentifier || '',
+            externalReference: record.external_reference || record.externalReference || '',
+            location: record.location || '',
+            createdAt: record.created_at || record.createdAt || new Date().toISOString()
+        });
 
         // Cleanup old protection entries for locally modified prescriptions
         const cleanupLocalProtections = () => {
@@ -685,12 +861,13 @@
         // Recovery function to restore backup data
         const restoreBackupData = () => {
             try {
-                const backupPatients = loadFromStorage('backup_patients', []);
-                const backupVitals = loadFromStorage('backup_vitals', []);
-                const backupPrescriptions = loadFromStorage('backup_prescriptions', []);
-                const backupCaseReports = loadFromStorage('backup_caseReports', []);
-                const backupSickIntimations = loadFromStorage('backup_sickIntimations', []);
-                const backupTreatmentRefusals = loadFromStorage('backup_treatmentRefusals', []);
+                const backupPatients = ensureArray(loadFromStorage('backup_patients', []));
+                const backupVitals = ensureArray(loadFromStorage('backup_vitals', []));
+                const backupPrescriptions = ensureArray(loadFromStorage('backup_prescriptions', []));
+                const backupCaseReports = ensureArray(loadFromStorage('backup_caseReports', [])).map(mapCaseReportFromServer);
+                const backupSickIntimations = ensureArray(loadFromStorage('backup_sickIntimations', [])).map(mapSickIntimationFromServer);
+                const backupTreatmentRefusalsRaw = ensureArray(loadFromStorage('backup_treatmentRefusals', []));
+                const backupTreatmentRefusals = backupTreatmentRefusalsRaw.map(normalizeTreatmentRefusalRecord);
                 const backupTimestamp = localStorage.getItem('backup_timestamp');
                 
                 if (backupPatients.length > 0 || backupVitals.length > 0 || backupPrescriptions.length > 0 || 
@@ -764,7 +941,7 @@
             const safePrescriptions = prescriptions || [];
             const safeCaseReports = caseReports || [];
             const safeSickIntimations = sickIntimations || [];
-            const safeTreatmentRefusals = treatmentRefusals || [];
+            const safeTreatmentRefusals = ensureArray(treatmentRefusals);
             
             // Time calculations
             const now = new Date();
@@ -3432,7 +3609,7 @@
             const safePatients = patients || [];
             const safeCaseReports = caseReports || [];
             const safeSickIntimations = sickIntimations || [];
-            const safeTreatmentRefusals = treatmentRefusals || [];
+            const safeTreatmentRefusals = ensureArray(treatmentRefusals);
 
             // Generate unique IDs for reports
             const generateCaseReportNumber = () => {
@@ -3623,69 +3800,12 @@
                 }));
             };
 
-            const toBoolean = (value) => value === true || value === 1 || value === '1' || value === 'true';
-
-            const parseArrayField = (value) => {
-                if (!value && value !== 0) return [];
-                if (Array.isArray(value)) return value;
-                if (typeof value === 'string' && value.trim() === '') return [];
-                try {
-                    const parsed = JSON.parse(value);
-                    return Array.isArray(parsed) ? parsed : [];
-                } catch {
-                    return [];
-                }
-            };
-
-            const normalizeRefusalRecord = (record = {}) => {
-                if (!record || typeof record !== 'object') return {};
-
-                const checklist = parseArrayField(record.counsellingChecklist || record.counsellingSteps);
-                const additionalWitnesses = parseArrayField(record.additionalWitnesses).map(w => ({
-                    name: w?.name || '',
-                    relation: w?.relation || '',
-                    contact: w?.contact || ''
-                }));
-                const additionalIdentifiers = parseArrayField(record.additionalIdentifiers).map(i => ({
-                    type: i?.type || '',
-                    value: i?.value || ''
-                }));
-                const attachments = parseArrayField(record.attachments).map(a => ({
-                    description: a?.description || '',
-                    reference: a?.reference || ''
-                }));
-
-                let summary = record.counsellingSummary || '';
-                if (!summary && checklist.length > 0) {
-                    summary = `Checklist: ${checklist.join('; ')}`;
-                }
-
-                return {
+            const normalizedTreatmentRefusals = safeTreatmentRefusals
+                .map(normalizeTreatmentRefusalRecord)
+                .map(record => ({
                     ...record,
-                    severityLevel: record.severityLevel || 'moderate',
-                    location: record.location || '',
-                    counsellingSummary: summary,
-                    counsellingChecklist: checklist,
-                    followUpRequired: toBoolean(record.followUpRequired),
-                    followUpDate: record.followUpDate || '',
-                    followUpActions: record.followUpActions || '',
-                    witnessName: record.witnessName || '',
-                    witnessContact: record.witnessContact || '',
-                    additionalWitnesses,
-                    notes: record.notes || '',
-                    doctorRemarks: record.doctorRemarks || '',
-                    consentAcknowledged: toBoolean(record.consentAcknowledged),
-                    consentSignedName: record.consentSignedName || '',
-                    consentSignedUsn: record.consentSignedUsn || '',
-                    consentTerms: record.consentTerms || CONSENT_TERMS_TEMPLATE,
-                    additionalIdentifiers,
-                    attachments,
-                    institutionIdentifier: record.institutionIdentifier || '',
-                    externalReference: record.externalReference || ''
-                };
-            };
-
-            const normalizedTreatmentRefusals = (safeTreatmentRefusals || []).map(normalizeRefusalRecord);
+                    consentTerms: record.consentTerms || CONSENT_TERMS_TEMPLATE
+                }));
 
             const severityBadgeClass = {
                 low: 'bg-green-100 text-green-700',
@@ -3990,41 +4110,48 @@
                     status: 'Active'
                 };
 
-                const newRefusals = [...safeTreatmentRefusals, refusalRecord];
+                const normalizedRefusal = normalizeTreatmentRefusalRecord(refusalRecord);
+                const finalRefusalRecord = {
+                    ...normalizedRefusal,
+                    consentTerms: normalizedRefusal.consentTerms || CONSENT_TERMS_TEMPLATE
+                };
+
+                const newRefusals = [...safeTreatmentRefusals, finalRefusalRecord];
                 setTreatmentRefusals(newRefusals);
                 saveToStorage('treatmentRefusals', newRefusals);
 
                 const syncPayload = {
-                    refusalNumber,
-                    usn: refusalFormData.usn,
-                    patientName: selectedPatientDetails?.fullName || '',
-                    patientAge: selectedPatientDetails?.age || '',
-                    patientGender: selectedPatientDetails?.gender || '',
-                    caseReportId: linkedCaseReport || null,
-                    refusalDate: refusalFormData.refusalDate,
-                    reason: refusalFormData.reason,
-                    risksExplained: refusalFormData.risksExplained,
-                    severityLevel: refusalFormData.severityLevel,
-                    counsellingSummary: counsellingSummaryText,
-                    counsellingSteps: refusalFormData.counsellingChecklist,
-                    followUpRequired: refusalFormData.followUpRequired,
-                    followUpDate: refusalFormData.followUpDate,
-                    followUpActions: refusalFormData.followUpActions,
-                    witnessName: refusalFormData.witnessName,
-                    witnessContact: refusalFormData.witnessContact,
-                    additionalWitnesses,
-                    notes: refusalFormData.notes,
-                    doctorRemarks: refusalFormData.doctorRemarks,
-                    doctorName: refusalFormData.doctorName,
-                    consentAcknowledged: refusalFormData.consentAcknowledged,
-                    consentSignedName: refusalFormData.consentSignedName,
-                    consentSignedUsn: refusalFormData.consentSignedUsn,
-                    consentTerms: refusalFormData.consentTerms,
-                    additionalIdentifiers,
-                    attachments,
-                    institutionIdentifier: refusalFormData.institutionIdentifier,
-                    externalReference: refusalFormData.externalReference,
-                    location: refusalFormData.location
+                    refusalNumber: finalRefusalRecord.refusalNumber,
+                    usn: finalRefusalRecord.usn,
+                    patientName: finalRefusalRecord.patientName,
+                    patientAge: finalRefusalRecord.patientAge,
+                    patientGender: finalRefusalRecord.patientGender,
+                    caseReportId: finalRefusalRecord.caseReportId || null,
+                    refusalDate: finalRefusalRecord.refusalDate,
+                    reason: finalRefusalRecord.reason,
+                    risksExplained: finalRefusalRecord.risksExplained,
+                    severityLevel: finalRefusalRecord.severityLevel,
+                    counsellingSummary: finalRefusalRecord.counsellingSummary,
+                    counsellingSteps: finalRefusalRecord.counsellingChecklist,
+                    followUpRequired: finalRefusalRecord.followUpRequired,
+                    followUpDate: finalRefusalRecord.followUpDate,
+                    followUpActions: finalRefusalRecord.followUpActions,
+                    witnessName: finalRefusalRecord.witnessName,
+                    witnessContact: finalRefusalRecord.witnessContact,
+                    additionalWitnesses: finalRefusalRecord.additionalWitnesses,
+                    notes: finalRefusalRecord.notes,
+                    doctorRemarks: finalRefusalRecord.doctorRemarks,
+                    doctorName: finalRefusalRecord.doctorName,
+                    consentAcknowledged: finalRefusalRecord.consentAcknowledged,
+                    consentSignedName: finalRefusalRecord.consentSignedName,
+                    consentSignedUsn: finalRefusalRecord.consentSignedUsn,
+                    consentTerms: finalRefusalRecord.consentTerms,
+                    additionalIdentifiers: finalRefusalRecord.additionalIdentifiers,
+                    attachments: finalRefusalRecord.attachments,
+                    institutionIdentifier: finalRefusalRecord.institutionIdentifier,
+                    externalReference: finalRefusalRecord.externalReference,
+                    location: finalRefusalRecord.location,
+                    createdAt: finalRefusalRecord.createdAt
                 };
 
                 const syncResult = await syncWithDatabase('treatment-refusals', syncPayload);
@@ -4679,7 +4806,7 @@
             };
 
             const printTreatmentRefusalFromRecord = (refusal) => {
-                const normalized = normalizeRefusalRecord(refusal);
+                const normalized = normalizeTreatmentRefusalRecord(refusal);
                 const printWindow = window.open('', '_blank');
                 const logoUrl = new URL('./nhce_25-scaled-1-2048x683.png', window.location.href).href;
                 const now = new Date();
@@ -4768,6 +4895,9 @@
                                 body { margin:0; }
                                 .no-print { display:none; }
                                 img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                                .signature-footer-section,
+                                .signature-footer-section .signature-group,
+                                .signature-footer-section .footer { page-break-inside: avoid; break-inside: avoid; }
                             }
                             body { font-family: Arial, sans-serif; max-width: 820px; margin: 0 auto; padding: 20px; color: #111827; line-height: 1.5; }
                             .header { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px; }
@@ -4779,10 +4909,12 @@
                             .info-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 12px 16px; font-size: 14px; }
                             .label { font-weight: 600; color: #1f2937; }
                             .notes { background: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; font-size: 14px; }
-                            .signature-group { margin-top: 40px; display: flex; justify-content: space-between; gap: 40px; }
+                            .signature-footer-section { margin-top: 40px; display: flex; flex-direction: column; gap: 28px; }
+                            .signature-group { display: flex; justify-content: space-between; gap: 40px; }
                             .signature-block { flex: 1; }
                             .signature-line { border-bottom: 1px solid #1f2937; height: 32px; margin-bottom: 6px; }
                             .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #6b7280; border-top: 1px solid #d1d5db; padding-top: 12px; }
+                            .nhei-stamp { margin:18px auto 0 auto; padding:10px 20px; border:2px solid #1d4ed8; border-radius:10px; background:linear-gradient(135deg,#eef6ff,#dbeafe); color:#1e3a8a; font-size:13px; font-weight:600; max-width:520px; letter-spacing:0.5px; box-shadow:0 2px 6px -1px rgba(0,0,0,0.08),0 4px 12px -2px rgba(29,78,216,0.15); }
                             .meta { text-align: right; font-size: 12px; color: #374151; }
                             .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0.03em; }
                             .muted { color: #6b7280; font-size: 13px; }
@@ -4891,21 +5023,26 @@
                             </div>
                         </div>
 
-                        <div class="signature-group">
-                            <div class="signature-block">
-                                <div class="signature-line"></div>
-                                <div class="label">Patient / Guardian Signature</div>
+                        <div class="signature-footer-section">
+                            <div class="signature-group">
+                                <div class="signature-block">
+                                    <div class="signature-line"></div>
+                                    <div class="label">Patient / Guardian Signature</div>
+                                </div>
+                                <div class="signature-block">
+                                    <div class="signature-line"></div>
+                                    <div class="label">Attending Staff Signature</div>
+                                </div>
                             </div>
-                            <div class="signature-block">
-                                <div class="signature-line"></div>
-                                <div class="label">Attending Staff Signature</div>
-                            </div>
-                        </div>
 
-                        <div class="footer">
-                            <p><strong>New Horizon Sanjeevani Clinic</strong> · This document records a voluntary refusal of treatment after counselling.</p>
-                            <p>Refusal Number: ${escapeValue(normalized.refusalNumber || 'Pending')} · Dated: ${formatDate(normalized.refusalDate, generatedDate)}</p>
-                            <p>© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                            <div class="footer">
+                                <p><strong>New Horizon Sanjeevani Clinic</strong></p>
+                                <p>This treatment refusal record is computer generated and documents the patient's informed decision.</p>
+                                <p>Refusal Number: ${escapeValue(normalized.refusalNumber || 'Pending')} | Generated on: ${generatedDate} at ${generatedTime}</p>
+                                <p style="margin-top:10px;">© ${new Date().getFullYear()} Hospital Management Information System - LeadOnyx Apex LLP</p>
+                                <p>Contact : Raj Goyal +91 79922 47030 · rajgoyal@duck.com · USN: 1NH23CS329</p>
+                                <div class="nhei-stamp">Official internal clinical document &mdash; For exclusive use within New Horizon Education Institutions (NHEI). Unauthorized reproduction, distribution, or external circulation is prohibited.</div>
+                            </div>
                         </div>
 
                         <div class="no-print" style="text-align:center;margin-top:20px;">
@@ -5834,6 +5971,24 @@
                                 >
                                     💾 Save Treatment Refusal
                                 </button>
+                                <button 
+                                    type="button" 
+                                    onClick={async () => {
+                                        console.log('Testing database connection...');
+                                        const isHealthy = await checkServerHealth();
+                                        console.log('Server health check result:', isHealthy);
+                                        serverAvailable = isHealthy;
+
+                                        if (isHealthy) {
+                                            alert('✅ Database connection successful!');
+                                        } else {
+                                            alert('❌ Database connection failed. Please ensure the Python server is running on localhost:5000');
+                                        }
+                                    }}
+                                    className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                                >
+                                    🔧 Test DB Connection
+                                </button>
                                 {currentTreatmentRefusalNumber && (
                                     <div className="text-sm text-gray-600 self-center">
                                         Last recorded: <span className="font-mono">{currentTreatmentRefusalNumber}</span>
@@ -6104,6 +6259,9 @@
             const [prescriptions, setPrescriptions] = useState(() => loadFromStorage('prescriptions', []));
             const [caseReports, setCaseReports] = useState(() => loadFromStorage('caseReports', []));
             const [sickIntimations, setSickIntimations] = useState(() => loadFromStorage('sickIntimations', []));
+            const [treatmentRefusals, setTreatmentRefusals] = useState(() =>
+                ensureArray(loadFromStorage('treatmentRefusals', [])).map(normalizeTreatmentRefusalRecord)
+            );
             const [selectedPatient, setSelectedPatient] = useState(null);
             const [activeTab, setActiveTab] = useState('dashboard');
             // Scroll to top whenever active tab changes for better UX after quick actions
@@ -6129,7 +6287,7 @@
                 prescriptions: prescriptions?.length || 0,
                 caseReports: caseReports?.length || 0,
                 sickIntimations: sickIntimations?.length || 0,
-                prescriptions: prescriptions?.length || 0,
+                treatmentRefusals: treatmentRefusals?.length || 0,
                 activeTab,
                 dbConnected
             });
@@ -6142,6 +6300,9 @@
                         setPatients(restored.patients);
                         setVitals(restored.vitals);
                         setPrescriptions(restored.prescriptions);
+                        setCaseReports(restored.caseReports || []);
+                        setSickIntimations(restored.sickIntimations || []);
+                        setTreatmentRefusals(ensureArray(restored.treatmentRefusals).map(normalizeTreatmentRefusalRecord));
                         setHasBackup(false);
                         alert('Backup data restored successfully!');
                     }
@@ -6183,6 +6344,9 @@
                                 let serverPatients = await apiRequest('/api/patients');
                                 const serverVitals = await apiRequest('/api/vitals');
                                 const serverPrescriptions = await apiRequest('/api/prescriptions');
+                                const serverCaseReportsRaw = await apiRequest('/api/case-reports');
+                                const serverSickIntimationsRaw = await apiRequest('/api/sick-intimations');
+                                const serverTreatmentRefusalsRaw = await apiRequest('/api/treatment-refusals');
                                 // Respect locally queued deletions to avoid reappearing entries
                                 const deletedUSNs = loadFromStorage('deleted_usns', []);
                                 if (Array.isArray(deletedUSNs) && deletedUSNs.length > 0) {
@@ -6193,14 +6357,37 @@
                                 const mergedPatients = mergeArrays(patients, serverPatients || [], 'usn');
                                 const mergedVitals = mergeArrays(vitals, serverVitals || [], 'id');
                                 const mergedPrescriptions = mergeArrays(prescriptions, serverPrescriptions || [], 'id');
+                                const mergedCaseReports = mergeArrays(
+                                    caseReports,
+                                    (serverCaseReportsRaw || []).map(mapCaseReportFromServer),
+                                    'reportNumber'
+                                );
+                                const mergedSickIntimations = mergeArrays(
+                                    sickIntimations,
+                                    (serverSickIntimationsRaw || []).map(mapSickIntimationFromServer),
+                                    'intimationNumber'
+                                );
+                                const mergedTreatmentRefusals = mergeArrays(
+                                    treatmentRefusals,
+                                    (serverTreatmentRefusalsRaw || []).map(mapTreatmentRefusalFromServer),
+                                    'refusalNumber'
+                                );
+                                const normalizedMergedTreatmentRefusals = ensureArray(mergedTreatmentRefusals)
+                                    .map(normalizeTreatmentRefusalRecord);
                                 
                                 setPatients(mergedPatients);
                                 setVitals(mergedVitals);
                                 setPrescriptions(mergedPrescriptions);
+                                setCaseReports(mergedCaseReports);
+                                setSickIntimations(mergedSickIntimations);
+                                setTreatmentRefusals(normalizedMergedTreatmentRefusals);
                                 
                                 saveToStorage('patients', mergedPatients);
                                 saveToStorage('vitals', mergedVitals);
                                 saveToStorage('prescriptions', mergedPrescriptions);
+                                saveToStorage('caseReports', mergedCaseReports);
+                                saveToStorage('sickIntimations', mergedSickIntimations);
+                                saveToStorage('treatmentRefusals', normalizedMergedTreatmentRefusals);
                                 
                                 setSyncStatus('synced');
                                 console.log('Data refresh and merge completed');
@@ -6242,6 +6429,27 @@
                 }
             }, [prescriptions, dbConnected]);
 
+            useEffect(() => {
+                saveToStorage('caseReports', caseReports);
+                if (dbConnected && caseReports.length > 0) {
+                    localStorage.setItem('needsSync', 'true');
+                }
+            }, [caseReports, dbConnected]);
+
+            useEffect(() => {
+                saveToStorage('sickIntimations', sickIntimations);
+                if (dbConnected && sickIntimations.length > 0) {
+                    localStorage.setItem('needsSync', 'true');
+                }
+            }, [sickIntimations, dbConnected]);
+
+            useEffect(() => {
+                saveToStorage('treatmentRefusals', treatmentRefusals);
+                if (dbConnected && treatmentRefusals.length > 0) {
+                    localStorage.setItem('needsSync', 'true');
+                }
+            }, [treatmentRefusals, dbConnected]);
+
             const handleDeletePatient = async (usn) => {
                 if (!usn) return;
                 if (!confirm('Are you sure you want to delete this patient? This will also remove all associated vitals and prescriptions.')) return;
@@ -6250,6 +6458,9 @@
                 setPatients(prev => prev.filter(p => p.usn !== usn));
                 setVitals(prev => prev.filter(v => v.usn !== usn));
                 setPrescriptions(prev => prev.filter(r => r.usn !== usn));
+                setCaseReports(prev => prev.filter(r => r.usn !== usn));
+                setSickIntimations(prev => prev.filter(r => r.usn !== usn));
+                setTreatmentRefusals(prev => ensureArray(prev).filter(r => r.usn !== usn));
                 if (selectedPatient?.usn === usn) {
                     setSelectedPatient(null);
                 }
@@ -6428,6 +6639,7 @@
                                 prescriptions={prescriptions}
                                 caseReports={caseReports}
                                 sickIntimations={sickIntimations}
+                                treatmentRefusals={treatmentRefusals}
                                 setActiveTab={setActiveTab}
                             />
                         )}
@@ -6488,6 +6700,8 @@
                                 setCaseReports={setCaseReports}
                                 sickIntimations={sickIntimations}
                                 setSickIntimations={setSickIntimations}
+                                treatmentRefusals={treatmentRefusals}
+                                setTreatmentRefusals={setTreatmentRefusals}
                             />
                         )}
 

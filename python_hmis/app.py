@@ -6,7 +6,7 @@ import os
 import sys
 import sqlite3
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, redirect, render_template, request, Response, url_for, jsonify, send_from_directory
@@ -444,6 +444,148 @@ def init_db() -> None:
         if not any(col[1] == column for col in info):
             cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition};")
 
+    def _json(value: Any) -> str:
+        """Serialize helper ensuring ASCII storage."""
+        return json.dumps(value, ensure_ascii=True)
+
+    def _seed_test_data(cursor: sqlite3.Cursor) -> None:
+        if cursor.execute("SELECT COUNT(1) FROM patients").fetchone()[0] == 0:
+            cursor.executemany(
+                "INSERT INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
+                [
+                    ("1NH21CS001", "Aditi Rao", 20, "Female", "9876543210", "NHCE Hostel, Bengaluru"),
+                    ("1NH21CS002", "Karthik Sharma", 21, "Male", "9876501234", "Kalyan Nagar, Bengaluru"),
+                ],
+            )
+
+        if cursor.execute("SELECT COUNT(1) FROM case_reports").fetchone()[0] == 0:
+            today_iso = date.today().isoformat()
+            cursor.executemany(
+                """
+                INSERT INTO case_reports(
+                    report_number, usn, patient_name, patient_age, patient_gender,
+                    report_type, chief_complaint, history_of_present_illness,
+                    diagnosis, doctor_name, report_date, status
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                [
+                    (
+                        "CR-0001",
+                        "1NH21CS001",
+                        "Aditi Rao",
+                        20,
+                        "Female",
+                        "medical",
+                        "Persistent headache",
+                        "Five-day history of headaches with photophobia",
+                        "Migraine",
+                        "Dr. Meera Singh",
+                        today_iso,
+                        "Active",
+                    ),
+                    (
+                        "CR-0002",
+                        "1NH21CS002",
+                        "Karthik Sharma",
+                        21,
+                        "Male",
+                        "medical",
+                        "Low-grade fever",
+                        "Two-day history of fever and fatigue",
+                        "Viral infection",
+                        "Dr. Arjun Rao",
+                        today_iso,
+                        "Active",
+                    ),
+                ],
+            )
+
+        if cursor.execute("SELECT COUNT(1) FROM treatment_refusals").fetchone()[0] == 0:
+            today = date.today()
+            follow_up_date = (today + timedelta(days=7)).isoformat()
+            today_iso = today.isoformat()
+            cursor.executemany(
+                """
+                INSERT INTO treatment_refusals(
+                    refusal_number, usn, patient_name, patient_age, patient_gender,
+                    case_report_id, refusal_date, reason, risks_explained, witness_name,
+                    witness_contact, notes, doctor_name, status, severity_level,
+                    counselling_summary, follow_up_required, follow_up_date,
+                    follow_up_actions, consent_acknowledged, consent_signed_name,
+                    consent_signed_usn, consent_terms, doctor_remarks,
+                    additional_identifiers, attachments, additional_witnesses,
+                    institution_identifier, external_reference, location
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                [
+                    (
+                        "TR-0001",
+                        "1NH21CS001",
+                        "Aditi Rao",
+                        20,
+                        "Female",
+                        "CR-0001",
+                        today_iso,
+                        "Patient declined recommended MRI",
+                        "Discussed potential neurological complications",
+                        "Nisha Rao",
+                        "9876512345",
+                        "Will pursue Ayurvedic management first",
+                        "Dr. Meera Singh",
+                        "Active",
+                        "Moderate",
+                        "Explained warning signs and escalation plan",
+                        1,
+                        follow_up_date,
+                        "Call to reassess symptoms after exams",
+                        1,
+                        "Aditi Rao",
+                        "1NH21CS001",
+                        "Understands risks and accepts monitoring plan",
+                        "Monitor symptoms; proceed with imaging if headaches worsen",
+                        _json(["college-id", "insurance-card"]),
+                        _json([
+                            {"type": "note", "title": "Counselling summary", "createdAt": today_iso}
+                        ]),
+                        _json(["Guardian: Rahul Rao"]),
+                        "NHCE Clinic",
+                        "REF-TR-0001",
+                        "Bengaluru OPD",
+                    ),
+                    (
+                        "TR-0002",
+                        "1NH21CS002",
+                        "Karthik Sharma",
+                        21,
+                        "Male",
+                        "CR-0002",
+                        today_iso,
+                        "Declined follow-up laboratory tests",
+                        "Outlined benefits of baseline blood work",
+                        "Anil Sharma",
+                        "9876509876",
+                        "Student prefers to delay tests until after semester exams",
+                        "Dr. Arjun Rao",
+                        "Active",
+                        "Low",
+                        "Provided hydration and rest guidance",
+                        0,
+                        None,
+                        "Student to book labs when ready",
+                        0,
+                        None,
+                        None,
+                        "Patient advised to return if fever persists beyond three days",
+                        _json(["student-health-card"]),
+                        _json([]),
+                        _json([]),
+                        "NHCE Clinic",
+                        "REF-TR-0002",
+                        "Campus medical center",
+                    ),
+                ],
+            )
+
     # Backfill new treatment refusal columns for existing databases
     _ensure_column("treatment_refusals", "severity_level", "TEXT")
     _ensure_column("treatment_refusals", "counselling_summary", "TEXT")
@@ -461,6 +603,8 @@ def init_db() -> None:
     _ensure_column("treatment_refusals", "institution_identifier", "TEXT")
     _ensure_column("treatment_refusals", "external_reference", "TEXT")
     _ensure_column("treatment_refusals", "location", "TEXT")
+
+    _seed_test_data(cur)
 
     # Seed some lab tests if empty
     if cur.execute("SELECT COUNT(1) FROM lab_tests").fetchone()[0] == 0:
@@ -1715,7 +1859,59 @@ def sync_sick_intimations():
         synced_count = 0
         for si in data:
             try:
-                if not si.get('intimationNumber') or not si.get('usn'):
+                if not si.get("intimationNumber") or not si.get("usn"):
+                    continue
+
+                cur.execute(
+                    "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
+                    (
+                        si.get("usn"),
+                        si.get("patientName") or "Unknown",
+                        si.get("patientAge") or 0,
+                        si.get("patientGender") or "Unknown",
+                        "",
+                        "",
+                    ),
+                )
+
+                cur.execute(
+                    """
+                    INSERT OR REPLACE INTO sick_intimations(
+                        id, intimation_number, usn, patient_name, patient_age, patient_gender, case_report_id,
+                        sick_leave_from, sick_leave_to, total_days, reason, symptoms, rest_recommended,
+                        doctor_name, issue_date, status, created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        si.get("id"),
+                        si.get("intimationNumber"),
+                        si.get("usn"),
+                        si.get("patientName"),
+                        si.get("patientAge"),
+                        si.get("patientGender"),
+                        si.get("caseReportId"),
+                        si.get("sickLeaveFrom"),
+                        si.get("sickLeaveTo"),
+                        si.get("totalDays"),
+                        si.get("reason"),
+                        si.get("symptoms"),
+                        1 if si.get("restRecommended", True) else 0,
+                        si.get("doctorName"),
+                        si.get("issueDate"),
+                        si.get("status", "Active"),
+                        si.get("createdAt") or datetime.utcnow().isoformat(),
+                    ),
+                )
+                synced_count += 1
+            except Exception as e:
+                print(f"Error syncing sick intimation {si.get('intimationNumber', 'unknown')}: {e}")
+
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success", "synced_count": synced_count, "total_received": len(data)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/sync/treatment-refusals", methods=["POST"])
 def sync_treatment_refusals():
@@ -1728,63 +1924,85 @@ def sync_treatment_refusals():
         conn = get_db()
         cur = conn.cursor()
         synced_count = 0
+
+        def _json_or_none(value: Any) -> Optional[str]:
+            if value is None:
+                return None
+            if isinstance(value, str):
+                return value
+            try:
+                return json.dumps(value, ensure_ascii=False)
+            except TypeError:
+                return json.dumps(str(value), ensure_ascii=False)
+
         for tr in data:
             try:
-                if not tr.get('refusalNumber') or not tr.get('usn'):
+                if not tr.get("refusalNumber") or not tr.get("usn"):
                     continue
+
                 cur.execute(
                     "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
-                    (tr.get('usn'), tr.get('patientName') or 'Unknown', tr.get('patientAge') or 0, tr.get('patientGender') or 'Unknown', '', ''),
+                    (
+                        tr.get("usn"),
+                        tr.get("patientName") or "Unknown",
+                        tr.get("patientAge") or 0,
+                        tr.get("patientGender") or "Unknown",
+                        "",
+                        "",
+                    ),
                 )
+
                 cur.execute(
                     """
                     INSERT OR REPLACE INTO treatment_refusals(
                         id, refusal_number, usn, patient_name, patient_age, patient_gender, case_report_id,
                         refusal_date, reason, risks_explained, witness_name, witness_contact, notes,
-                        doctor_name, status, created_at
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        doctor_name, status, severity_level, counselling_summary, follow_up_required,
+                        follow_up_date, follow_up_actions, consent_acknowledged, consent_signed_name,
+                        consent_signed_usn, consent_terms, doctor_remarks, additional_identifiers,
+                        attachments, additional_witnesses, institution_identifier, external_reference,
+                        location, created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
-                        tr.get('id'), tr.get('refusalNumber'), tr.get('usn'), tr.get('patientName'), tr.get('patientAge'),
-                        tr.get('patientGender'), tr.get('caseReportId'), tr.get('refusalDate'), tr.get('reason'),
-                        tr.get('risksExplained'), tr.get('witnessName'), tr.get('witnessContact'), tr.get('notes'),
-                        tr.get('doctorName'), tr.get('status', 'Active'), tr.get('createdAt') or datetime.utcnow().isoformat()
+                        tr.get("id"),
+                        tr.get("refusalNumber"),
+                        tr.get("usn"),
+                        tr.get("patientName"),
+                        tr.get("patientAge"),
+                        tr.get("patientGender"),
+                        tr.get("caseReportId"),
+                        tr.get("refusalDate"),
+                        tr.get("reason"),
+                        tr.get("risksExplained"),
+                        tr.get("witnessName"),
+                        tr.get("witnessContact"),
+                        tr.get("notes"),
+                        tr.get("doctorName"),
+                        tr.get("status", "Active"),
+                        tr.get("severityLevel"),
+                        tr.get("counsellingSummary") or tr.get("counsellingSteps"),
+                        1 if tr.get("followUpRequired") else 0,
+                        tr.get("followUpDate"),
+                        tr.get("followUpActions"),
+                        1 if tr.get("consentAcknowledged") else 0,
+                        tr.get("consentSignedName"),
+                        tr.get("consentSignedUsn"),
+                        tr.get("consentTerms"),
+                        tr.get("doctorRemarks"),
+                        _json_or_none(tr.get("additionalIdentifiers")),
+                        _json_or_none(tr.get("attachments")),
+                        _json_or_none(tr.get("additionalWitnesses")),
+                        tr.get("institutionIdentifier"),
+                        tr.get("externalReference"),
+                        tr.get("location"),
+                        tr.get("createdAt") or datetime.utcnow().isoformat(),
                     ),
                 )
                 synced_count += 1
             except Exception as e:
                 print(f"Error syncing treatment refusal {tr.get('refusalNumber', 'unknown')}: {e}")
-        conn.commit()
-        conn.close()
-        return jsonify({"status": "success", "synced_count": synced_count, "total_received": len(data)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
-                    continue
-                cur.execute(
-                    "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
-                    (si.get('usn'), si.get('patientName') or 'Unknown', si.get('patientAge') or 0, si.get('patientGender') or 'Unknown', '', ''),
-                )
-                cur.execute(
-                    """
-                    INSERT OR REPLACE INTO sick_intimations(
-                        id, intimation_number, usn, patient_name, patient_age, patient_gender, case_report_id,
-                        sick_leave_from, sick_leave_to, total_days, reason, symptoms, rest_recommended,
-                        doctor_name, issue_date, status, created_at
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        treatment_refusals_count = cur.execute("SELECT COUNT(*) FROM treatment_refusals").fetchone()[0]
-                    """,
-                    (
-                        si.get('id'), si.get('intimationNumber'), si.get('usn'), si.get('patientName'), si.get('patientAge'), si.get('patientGender'),
-                        si.get('caseReportId'), si.get('sickLeaveFrom'), si.get('sickLeaveTo'), si.get('totalDays'), si.get('reason'), si.get('symptoms'),
-                        1 if si.get('restRecommended', True) else 0, si.get('doctorName'), si.get('issueDate'), si.get('status', 'Active'),
-                        si.get('createdAt') or datetime.utcnow().isoformat()
-                    ),
-                )
-                "sick_intimations": sick_intimations_count,
-                "treatment_refusals": treatment_refusals_count
-            except Exception as e:
-                print(f"Error syncing sick intimation {si.get('intimationNumber', 'unknown')}: {e}")
         conn.commit()
         conn.close()
         return jsonify({"status": "success", "synced_count": synced_count, "total_received": len(data)})
@@ -1802,6 +2020,7 @@ def sync_status():
         prescriptions_count = cur.execute("SELECT COUNT(*) FROM prescriptions").fetchone()[0]
         case_reports_count = cur.execute("SELECT COUNT(*) FROM case_reports").fetchone()[0]
         sick_intimations_count = cur.execute("SELECT COUNT(*) FROM sick_intimations").fetchone()[0]
+        treatment_refusals_count = cur.execute("SELECT COUNT(*) FROM treatment_refusals").fetchone()[0]
         conn.close()
         return jsonify({
             "status": "ok",
@@ -1810,7 +2029,8 @@ def sync_status():
                 "vitals": vitals_count,
                 "prescriptions": prescriptions_count,
                 "case_reports": case_reports_count,
-                "sick_intimations": sick_intimations_count
+                "sick_intimations": sick_intimations_count,
+                "treatment_refusals": treatment_refusals_count
             },
             "last_updated": datetime.utcnow().isoformat()
         })
@@ -1940,7 +2160,13 @@ def prescription_print(pid: int) -> str:
         (pid,),
     ).fetchall()
     conn.close()
-    return render_template("print_rx.html", rx=rx, patient=patient, items=items)
+    return render_template(
+        "print_rx.html",
+        rx=rx,
+        patient=patient,
+        items=items,
+        now=datetime.now().strftime("%Y-%m-%d %H:%M"),
+    )
 
 
 # New: Appointments CRUD (basic)

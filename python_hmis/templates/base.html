@@ -36,6 +36,9 @@
     <header>
       <h1>Hospital Management Information System (Python)</h1>
       <p class="muted">SQLite + Flask • CSV export • Edit/Delete • Search by USN or Phone</p>
+      <div class="btns" style="margin-top:8px">
+        <button class="btn" type="button" onclick="testDbConnection()">🔧 Test DB Connection</button>
+      </div>
     </header>
 
     {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -43,5 +46,23 @@
 
     {% block content %}{% endblock %}
   </div>
+  <script>
+    async function testDbConnection() {
+      try {
+        const response = await fetch(`/api/health?ts=${Date.now()}`, { cache: 'no-store' });
+        if (response.ok) {
+          const payload = await response.json();
+          if (payload && payload.status === 'ok') {
+            alert('✅ Database connection successful!');
+            return;
+          }
+        }
+        throw new Error('Health check failed');
+      } catch (error) {
+        console.error('DB connection test failed:', error);
+        alert('❌ Database connection failed. Please ensure the Python server is running on localhost:5000');
+      }
+    }
+  </script>
 </body>
 </html>
