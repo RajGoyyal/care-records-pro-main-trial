@@ -4,181 +4,448 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New Horizon Sanjeevani Clinic - HMIS</title>
+    <!-- Modern Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        /* Theme Variables - Custom Premium Design Tokens */
+        :root {
+            --bg-color: #f1f5f9;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --card-border: rgba(255, 255, 255, 0.6);
+            --card-hover-border: rgba(99, 102, 241, 0.25);
+            --text-color: #1e293b;
+            --text-muted: #64748b;
+            --shadow-color: rgba(15, 23, 42, 0.05);
+            --stat-card-bg: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            --table-th-bg: #f8fafc;
+            --table-td-border: #f1f5f9;
+            --table-hover-bg: rgba(99, 102, 241, 0.02);
+            --form-bg: rgba(255, 255, 255, 0.95);
+            --form-border: #e2e8f0;
+            --nav-bg: #ffffff;
+            --nav-border: #e2e8f0;
+            --footer-bg: #1e293b;
         }
+
+        .theme-dark {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.85);
+            --card-border: rgba(255, 255, 255, 0.06);
+            --card-hover-border: rgba(99, 102, 241, 0.45);
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --stat-card-bg: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            --table-th-bg: #1e293b;
+            --table-td-border: #334155;
+            --table-hover-bg: rgba(99, 102, 241, 0.08);
+            --form-bg: rgba(30, 41, 59, 0.9);
+            --form-border: #334155;
+            --nav-bg: #1e293b;
+            --nav-border: #334155;
+            --footer-bg: #020617;
+        }
+
+        /* Modern 3D Premium Design System Stylesheet */
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            background-color: var(--bg-color) !important;
+            color: var(--text-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.03) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.03) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.02) 0px, transparent 50%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Ambient body reset for tailwind */
+        body.bg-gray-100 {
+            background-color: var(--bg-color) !important;
+        }
+
+        /* 3D Glassmorphic Cards */
         .card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            color: var(--text-color);
+            box-shadow: 
+                0 15px 35px -10px var(--shadow-color),
+                0 5px 15px -5px rgba(15, 23, 42, 0.02),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            padding: 1.75rem;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-style: preserve-3d;
+            perspective: 1000px;
         }
+        .card:hover {
+            transform: translateY(-6px) scale(1.005);
+            box-shadow: 
+                0 30px 50px -15px rgba(99, 102, 241, 0.12),
+                0 10px 20px -8px var(--shadow-color),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            border-color: var(--card-hover-border);
+        }
+
+        /* Header Gradient - Vibrant Deep Mesh */
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+            box-shadow: 
+                0 10px 30px -10px rgba(30, 27, 75, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+            border-radius: 0 0 24px 24px;
+        }
+
+        /* 3D Tactile Buttons */
         .btn {
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.65rem 1.35rem;
+            border-radius: 14px;
+            border: 1px solid transparent;
             cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.02em;
+            outline: none;
+            transform: translateY(0);
         }
+
         .btn-primary {
-            background: #3b82f6;
+            background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
             color: white;
+            border: 1px solid #4f46e5;
+            box-shadow: 
+                0 4px 0 #3730a3, 
+                0 8px 16px rgba(79, 70, 229, 0.25);
         }
         .btn-primary:hover {
-            background: #2563eb;
+            background: linear-gradient(180deg, #4f46e5 0%, #4338ca 100%);
+            transform: translateY(1px);
+            box-shadow: 
+                0 3px 0 #3730a3, 
+                0 6px 12px rgba(79, 70, 229, 0.3);
         }
+        .btn-primary:active {
+            transform: translateY(4px);
+            box-shadow: 
+                0 0px 0 #3730a3, 
+                0 2px 4px rgba(79, 70, 229, 0.15);
+        }
+
         .btn-secondary {
-            background: #6b7280;
-            color: white;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            box-shadow: 
+                0 4px 0 #cbd5e1, 
+                0 8px 16px rgba(148, 163, 184, 0.1);
         }
         .btn-secondary:hover {
-            background: #4b5563;
+            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+            transform: translateY(1px);
+            box-shadow: 
+                0 3px 0 #cbd5e1, 
+                0 6px 12px rgba(148, 163, 184, 0.12);
         }
+        .btn-secondary:active {
+            transform: translateY(4px);
+            box-shadow: 
+                0 0px 0 #cbd5e1, 
+                0 2px 4px rgba(148, 163, 184, 0.05);
+        }
+
+        .btn-success {
+            background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: 1px solid #059669;
+            box-shadow: 
+                0 4px 0 #047857, 
+                0 8px 16px rgba(16, 185, 129, 0.25);
+        }
+        .btn-success:hover {
+            background: linear-gradient(180deg, #059669 0%, #047857 100%);
+            transform: translateY(1px);
+            box-shadow: 
+                0 3px 0 #047857, 
+                0 6px 12px rgba(16, 185, 129, 0.3);
+        }
+        .btn-success:active {
+            transform: translateY(4px);
+            box-shadow: 
+                0 0px 0 #047857, 
+                0 2px 4px rgba(16, 185, 129, 0.15);
+        }
+
+        .btn-info {
+            background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: 1px solid #1d4ed8;
+            box-shadow: 
+                0 4px 0 #1e40af, 
+                0 8px 16px rgba(59, 130, 246, 0.25);
+        }
+        .btn-info:hover {
+            background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
+            transform: translateY(1px);
+            box-shadow: 
+                0 3px 0 #1e40af, 
+                0 6px 12px rgba(59, 130, 246, 0.3);
+        }
+        .btn-info:active {
+            transform: translateY(4px);
+            box-shadow: 
+                0 0px 0 #1e40af, 
+                0 2px 4px rgba(59, 130, 246, 0.15);
+        }
+
+        /* Form Controls - Modern Tactile */
         .form-input {
             width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--form-border);
+            border-radius: 14px;
             margin-bottom: 1rem;
+            background: var(--form-bg);
+            box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.02);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+            color: var(--text-color);
         }
         .form-input:focus {
             outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            border-color: #6366f1;
+            background: var(--form-bg);
+            box-shadow: 
+                0 0 0 4px rgba(99, 102, 241, 0.15),
+                inset 0 2px 4px rgba(15, 23, 42, 0.01);
         }
+
+        /* 3D Tabs */
         .tab {
-            padding: 0.75rem 1.5rem;
-            border: none;
+            font-weight: 700;
+            color: var(--text-muted);
+            padding: 0.85rem 1.65rem;
+            border-radius: 14px;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            margin-right: 0.5rem;
+            border: 1px solid transparent;
             background: transparent;
             cursor: pointer;
-            border-bottom: 2px solid transparent;
+            transform: translateY(0);
+        }
+        .tab:hover {
+            color: #4f46e5;
+            background: rgba(99, 102, 241, 0.05);
+            transform: translateY(-2px);
         }
         .tab.active {
-            border-bottom-color: #3b82f6;
-            color: #3b82f6;
+            color: #4f46e5;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            box-shadow: 
+                0 10px 20px -5px rgba(99, 102, 241, 0.15), 
+                0 4px 6px -2px rgba(99, 102, 241, 0.05),
+                inset 0 -3px 0 #4f46e5;
+            transform: translateY(-3px);
         }
+
+        /* Navigation Style Reset */
+        nav {
+            background-color: var(--nav-bg) !important;
+            border-bottom: 1px solid var(--nav-border) !important;
+            transition: all 0.3s ease;
+        }
+
+        /* 3D Stat Cards */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
             margin-bottom: 2rem;
         }
         .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            background: var(--stat-card-bg);
+            border: 1px solid var(--card-border);
+            padding: 1.75rem;
+            border-radius: 20px;
+            box-shadow: 
+                0 10px 20px -8px var(--shadow-color),
+                0 4px 6px -2px rgba(15, 23, 42, 0.03);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+            border-bottom: 4px solid var(--form-border);
             text-align: center;
         }
+        .stat-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 
+                0 20px 30px -10px rgba(99, 102, 241, 0.15),
+                0 10px 15px -5px var(--shadow-color);
+            border-bottom-color: #6366f1;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(90deg, #6366f1, #3b82f6);
+            opacity: 0.85;
+        }
         .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #3b82f6;
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.1;
+            margin-bottom: 0.35rem;
+            filter: drop-shadow(0 2px 4px rgba(79, 70, 229, 0.12));
         }
         .stat-label {
-            color: #6b7280;
-            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
+
+        /* Alerts - Elevated */
         .alert {
-            padding: 1rem;
-            border-radius: 6px;
-            margin-bottom: 1rem;
+            padding: 1.25rem;
+            border-radius: 16px;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
         }
         .alert-info {
-            background: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
+            background: rgba(59, 130, 246, 0.08);
+            color: #3b82f6;
+            border-color: rgba(59, 130, 246, 0.15);
+        }
+
+        /* 3D Professional Tables */
+        .table-container {
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: inset 0 0 0 1px var(--nav-border);
         }
         .table {
             width: 100%;
-            border-collapse: collapse;
-        }
-        .table th,
-        .table td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
+            border-collapse: separate;
+            border-spacing: 0;
         }
         .table th {
-            background: #f9fafb;
-            font-weight: 600;
+            background: var(--table-th-bg);
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.06em;
+            border-bottom: 2px solid var(--nav-border);
+            padding: 1rem 0.85rem;
         }
+        .table td {
+            padding: 1.1rem 0.85rem;
+            border-bottom: 1px solid var(--table-td-border);
+            color: var(--text-color);
+            font-size: 0.875rem;
+            transition: background-color 0.2s ease, border-color 0.3s ease;
+        }
+        .table tr:last-child td {
+            border-bottom: none;
+        }
+        .table tr:hover td {
+            background-color: var(--table-hover-bg);
+        }
+
+        /* Badges - Sleek Pills */
         .badge {
-            display: inline-block;
-            padding: 0.25rem 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            padding: 0.3rem 0.85rem;
             font-size: 0.75rem;
             border-radius: 9999px;
-            font-weight: 500;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(15, 23, 42, 0.03);
+            border: 1px solid transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
-        .badge-green {
-            background: #d1fae5;
-            color: #065f46;
+        .badge-green { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+        .badge-blue { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+        .badge-yellow { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+        .badge-red { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+        .badge-pink { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+        .badge-purple { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
+        .badge-orange { background: #fff7ed; color: #c2410c; border-color: #ffedd5; }
+        .badge-gray { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
+
+        /* Custom scrollbar to keep aesthetics consistent */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
         }
-        .badge-blue {
-            background: #dbeafe;
-            color: #1e40af;
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
         }
-        .badge-yellow {
-            background: #fef3c7;
-            color: #92400e;
+        ::-webkit-scrollbar-thumb {
+            background: var(--form-border);
+            border-radius: 9999px;
         }
-        .badge-red {
-            background: #fee2e2;
-            color: #991b1b;
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
         }
-        .badge-pink {
-            background: #fce7f3;
-            color: #be185d;
+        
+        /* Dark Theme overrides for labels / generic details */
+        .text-gray-800, .text-gray-700 { color: var(--text-color) !important; }
+        .text-gray-600 { color: var(--text-muted) !important; }
+        .bg-white { background-color: var(--card-bg) !important; }
+        .border-gray-300 { border-color: var(--form-border) !important; }
+        
+        /* Footer theme */
+        footer {
+            background-color: var(--footer-bg) !important;
+            border-top: 1px solid var(--nav-border);
+            transition: background-color 0.3s ease;
         }
-        .badge-purple {
-            background: #ede9fe;
-            color: #7c3aed;
+
+        /* Make the React wrapper container transparent to show the 3D canvas background underneath */
+        .min-h-screen.bg-gray-100 {
+            background-color: transparent !important;
         }
-        .badge-orange {
-            background: #fed7aa;
-            color: #c2410c;
+
+        /* Hide horizontal scrollbar for navigation tab pills */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none !important;
         }
-        .badge-gray {
-            background: #f3f4f6;
-            color: #374151;
-        }
-        .btn-success {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .btn-success:hover {
-            background: #059669;
-            transform: translateY(-1px);
-        }
-        .btn-info {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .btn-info:hover {
-            background: #2563eb;
-            transform: translateY(-1px);
+        .no-scrollbar {
+            -ms-overflow-style: none !important;  /* IE and Edge */
+            scrollbar-width: none !important;  /* Firefox */
         }
     </style>
 </head>
 <body class="bg-gray-100">
+    <!-- 3D Animation Background Canvas -->
+    <div id="canvas-3d-container" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; opacity: 0.28; filter: blur(0.5px);"></div>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -1439,27 +1706,47 @@
                     <div className="grid gap-6 md:grid-cols-2">
                         <div className="card relative">
                             <h3 className="text-sm font-semibold mb-2 text-gray-700">Patient Gender Distribution</h3>
-                            <canvas
-                                ref={genderChartRef}
-                                onMouseMove={(e)=>handleCanvasMove(e, genderChartRef.current, 'gender')}
-                                onMouseLeave={()=> setHoverInfo(null)}
-                                onClick={(e)=>handleCanvasMove(e, genderChartRef.current, 'gender')}
-                                className="w-full select-none"
-                                style={{cursor:'pointer'}}
-                            />
-                            {renderLegend(genderSlices)}
+                            {stats.totalPatients === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="w-14 h-14 rounded-full bg-indigo-500/10 dark:bg-indigo-500/5 flex items-center justify-center text-xl mb-3 border border-indigo-500/20 shadow-inner">👥</div>
+                                    <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1">No Patient Data</h4>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[220px] leading-relaxed">Register patients to activate real-time gender metrics.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <canvas
+                                        ref={genderChartRef}
+                                        onMouseMove={(e)=>handleCanvasMove(e, genderChartRef.current, 'gender')}
+                                        onMouseLeave={()=> setHoverInfo(null)}
+                                        onClick={(e)=>handleCanvasMove(e, genderChartRef.current, 'gender')}
+                                        className="w-full select-none"
+                                        style={{cursor:'pointer'}}
+                                    />
+                                    {renderLegend(genderSlices)}
+                                </>
+                            )}
                         </div>
                         <div className="card relative">
                             <h3 className="text-sm font-semibold mb-2 text-gray-700">Prescription Priority Mix</h3>
-                            <canvas
-                                ref={priorityChartRef}
-                                onMouseMove={(e)=>handleCanvasMove(e, priorityChartRef.current, 'priority')}
-                                onMouseLeave={()=> setHoverInfo(null)}
-                                onClick={(e)=>handleCanvasMove(e, priorityChartRef.current, 'priority')}
-                                className="w-full select-none"
-                                style={{cursor:'pointer'}}
-                            />
-                            {renderLegend(prioritySlices)}
+                            {stats.totalPrescriptions === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="w-14 h-14 rounded-full bg-indigo-500/10 dark:bg-indigo-500/5 flex items-center justify-center text-xl mb-3 border border-indigo-500/20 shadow-inner">💊</div>
+                                    <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1">No Prescription Records</h4>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[220px] leading-relaxed">Prescribe treatments to visualize critical vs routine priorities.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <canvas
+                                        ref={priorityChartRef}
+                                        onMouseMove={(e)=>handleCanvasMove(e, priorityChartRef.current, 'priority')}
+                                        onMouseLeave={()=> setHoverInfo(null)}
+                                        onClick={(e)=>handleCanvasMove(e, priorityChartRef.current, 'priority')}
+                                        className="w-full select-none"
+                                        style={{cursor:'pointer'}}
+                                    />
+                                    {renderLegend(prioritySlices)}
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -1473,11 +1760,27 @@
                     <div className="grid gap-6 md:grid-cols-2">
                         <div className="card relative">
                             <h3 className="text-sm font-semibold mb-2 text-gray-700">Age Distribution</h3>
-                            <canvas ref={ageChartRef} className="w-full select-none" />
+                            {stats.totalPatients === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="w-14 h-14 rounded-full bg-indigo-500/10 dark:bg-indigo-500/5 flex items-center justify-center text-xl mb-3 border border-indigo-500/20 shadow-inner">📊</div>
+                                    <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1">No Demographics</h4>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[220px] leading-relaxed">Age groupings will display here once patient database grows.</p>
+                                </div>
+                            ) : (
+                                <canvas ref={ageChartRef} className="w-full select-none" />
+                            )}
                         </div>
                         <div className="card relative">
                             <h3 className="text-sm font-semibold mb-2 text-gray-700">Upcoming Follow-Ups (7 days)</h3>
-                            <canvas ref={followUpChartRef} className="w-full select-none" />
+                            {stats.upcomingFollowUps === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="w-14 h-14 rounded-full bg-indigo-500/10 dark:bg-indigo-500/5 flex items-center justify-center text-xl mb-3 border border-indigo-500/20 shadow-inner">📅</div>
+                                    <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1">No Scheduled Follow-Ups</h4>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[220px] leading-relaxed">No clinic follow-ups scheduled for the upcoming 7 days.</p>
+                                </div>
+                            ) : (
+                                <canvas ref={followUpChartRef} className="w-full select-none" />
+                            )}
                         </div>
                     </div>
 
@@ -7190,6 +7493,20 @@
 
         // Main App Component with Enhanced Debugging
         const App = () => {
+            const [theme, setTheme] = useState(() => localStorage.getItem('hmis-theme') || 'light');
+            const [fabOpen, setFabOpen] = useState(false);
+
+            useEffect(() => {
+                const root = document.documentElement;
+                if (theme === 'dark') {
+                    root.classList.add('theme-dark');
+                    localStorage.setItem('hmis-theme', 'dark');
+                } else {
+                    root.classList.remove('theme-dark');
+                    localStorage.setItem('hmis-theme', 'light');
+                }
+            }, [theme]);
+
             const [patients, setPatients] = useState(() => loadFromStorage('patients', []));
             const [vitals, setVitals] = useState(() => loadFromStorage('vitals', []));
             const [prescriptions, setPrescriptions] = useState(() => loadFromStorage('prescriptions', []));
@@ -7446,7 +7763,13 @@
                                         </p>
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right flex flex-col items-end gap-3">
+                                    <button 
+                                        onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                                        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 font-bold text-xs transition-all flex items-center gap-1.5 text-white shadow-lg active:scale-95"
+                                    >
+                                        {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+                                    </button>
                                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                                         syncStatus === 'connected' || syncStatus === 'synced' ? 'bg-green-500 text-white' :
                                         syncStatus === 'syncing' ? 'bg-yellow-500 text-white' :
@@ -7745,12 +8068,224 @@
                             </div>
                         </div>
                     </footer>
+                    
+                    {/* Quick Actions Floating Action Button (FAB) */}
+                    <div className="fixed bottom-6 right-6 z-50">
+                        {/* FAB Menu Actions */}
+                        {fabOpen && (
+                            <div className="flex flex-col gap-3 mb-3 items-end animate-[fadeIn_0.2s_ease-out]" style={{animation: 'fadeIn 0.2s ease-out'}}>
+                                <button 
+                                    onClick={() => { setActiveTab('patients'); setFabOpen(false); }}
+                                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl shadow-xl border border-indigo-500/20 font-bold text-sm transition-all hover:scale-105"
+                                >
+                                    <span>➕ Register Patient</span>
+                                </button>
+                                <button 
+                                    onClick={() => { setActiveTab('vitals'); setFabOpen(false); }}
+                                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-xl border border-emerald-500/20 font-bold text-sm transition-all hover:scale-105"
+                                >
+                                    <span>🌡️ Record Vitals</span>
+                                </button>
+                                <button 
+                                    onClick={() => { setActiveTab('prescriptions'); setFabOpen(false); }}
+                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl shadow-xl border border-blue-500/20 font-bold text-sm transition-all hover:scale-105"
+                                >
+                                    <span>💊 Add Treatment</span>
+                                </button>
+                                <button 
+                                    onClick={() => { setActiveTab('case-report'); setFabOpen(false); }}
+                                    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl shadow-xl border border-purple-500/20 font-bold text-sm transition-all hover:scale-105"
+                                >
+                                    <span>📄 Incident Report</span>
+                                </button>
+                                <button 
+                                    onClick={() => { setActiveTab('schedule'); setFabOpen(false); }}
+                                    className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl shadow-xl border border-amber-500/20 font-bold text-sm transition-all hover:scale-105"
+                                >
+                                    <span>📅 Schedule</span>
+                                </button>
+                            </div>
+                        )}
+                        {/* Main FAB Trigger */}
+                        <button
+                            onClick={() => setFabOpen(!fabOpen)}
+                            className="w-14 h-14 bg-gradient-to-tr from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl transition-all duration-300 transform active:scale-95 border-2 border-indigo-400/20 hover:scale-105 relative group overflow-hidden"
+                            style={{boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4), 0 8px 10px -6px rgba(79, 70, 229, 0.2)'}}
+                        >
+                            <span className={`transition-transform duration-300 ${fabOpen ? 'rotate-45' : ''}`}>⚡</span>
+                        </button>
+                    </div>
                 </div>
             );
         };
 
         // Render the app
         ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+    <script>
+        // Three.js 3D Molecular Background Animation
+        (() => {
+            const init3D = () => {
+                if (typeof THREE === 'undefined') {
+                    console.warn('Three.js is not defined. 3D molecular background animation is disabled.');
+                    return;
+                }
+                const container = document.getElementById('canvas-3d-container');
+                if (!container) return;
+
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.z = 28;
+
+                const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                container.appendChild(renderer.domElement);
+
+                // Create DNA Double Helix
+                const dnaHelix = new THREE.Group();
+                scene.add(dnaHelix);
+
+                const numPoints = 40; // Number of base pairs
+                const helixRadius = 4.5;
+                const helixHeight = 26;
+                const turns = 2.5;
+
+                const nodeGeom = new THREE.SphereGeometry(0.3, 12, 12);
+                
+                // Color configuration for strands and bases
+                const strandMat1 = new THREE.MeshBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.55 }); // Indigo
+                const strandMat2 = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.55 }); // Purple
+                const baseMats = [
+                    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 }), // Sky
+                    new THREE.MeshBasicMaterial({ color: 0xf43f5e, transparent: true, opacity: 0.6 }), // Rose
+                    new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.55 }), // Emerald
+                    new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.55 })  // Amber
+                ];
+
+                const strand1Spheres = [];
+                const strand2Spheres = [];
+                const rungPoints = [];
+
+                for (let i = 0; i < numPoints; i++) {
+                    const t = i / numPoints;
+                    const angle = t * turns * Math.PI * 2;
+                    const y = (t - 0.5) * helixHeight;
+
+                    // Strand 1 Position
+                    const x1 = helixRadius * Math.cos(angle);
+                    const z1 = helixRadius * Math.sin(angle);
+
+                    // Strand 2 Position (180 deg out of phase)
+                    const x2 = helixRadius * Math.cos(angle + Math.PI);
+                    const z2 = helixRadius * Math.sin(angle + Math.PI);
+
+                    // Add node to Strand 1
+                    const sphere1 = new THREE.Mesh(nodeGeom, strandMat1);
+                    sphere1.position.set(x1, y, z1);
+                    dnaHelix.add(sphere1);
+                    strand1Spheres.push(sphere1);
+
+                    // Add node to Strand 2
+                    const sphere2 = new THREE.Mesh(nodeGeom, strandMat2);
+                    sphere2.position.set(x2, y, z2);
+                    dnaHelix.add(sphere2);
+                    strand2Spheres.push(sphere2);
+
+                    // Save line positions for connecting rungs
+                    rungPoints.push(x1, y, z1);
+                    rungPoints.push(x2, y, z2);
+
+                    // Add a tiny colored base-pair junction node in the middle
+                    if (i % 2 === 0) {
+                        const midGeom = new THREE.SphereGeometry(0.18, 8, 8);
+                        const midMesh = new THREE.Mesh(midGeom, baseMats[(i / 2) % baseMats.length]);
+                        midMesh.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+                        dnaHelix.add(midMesh);
+                    }
+                }
+
+                // Add line segments connecting base pairs
+                const rungGeom = new THREE.BufferGeometry();
+                rungGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(rungPoints), 3));
+                const rungMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.12 });
+                const rungs = new THREE.LineSegments(rungGeom, rungMat);
+                dnaHelix.add(rungs);
+
+                // Add some ambient floating background particles for depth
+                const particles = new THREE.Group();
+                scene.add(particles);
+
+                const particleCount = 20;
+                const partGeom = new THREE.SphereGeometry(0.18, 8, 8);
+                const partMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 });
+                const partNodes = [];
+
+                for (let i = 0; i < particleCount; i++) {
+                    const mesh = new THREE.Mesh(partGeom, partMat);
+                    mesh.position.set(
+                        (Math.random() - 0.5) * 40,
+                        (Math.random() - 0.5) * 40,
+                        (Math.random() - 0.5) * 20 - 5
+                    );
+                    particles.add(mesh);
+                    partNodes.push({
+                        mesh,
+                        speedX: (Math.random() - 0.5) * 0.02,
+                        speedY: (Math.random() - 0.5) * 0.02
+                    });
+                }
+
+                // Tilt the DNA helix 45 degrees for a professional, dynamic look
+                dnaHelix.rotation.z = Math.PI / 4;
+                dnaHelix.rotation.x = 0.2;
+
+                // Slowly animate the molecular network
+                function animate() {
+                    requestAnimationFrame(animate);
+                    const time = Date.now() * 0.0002;
+                    
+                    // Rotate the tilted helix around its Y-axis
+                    dnaHelix.rotation.y = time * 1.2;
+
+                    // Pulsate individual strand nodes
+                    strand1Spheres.forEach((s, idx) => {
+                        const pulse = 1 + Math.sin(time * 8 + idx) * 0.15;
+                        s.scale.set(pulse, pulse, pulse);
+                    });
+                    strand2Spheres.forEach((s, idx) => {
+                        const pulse = 1 + Math.cos(time * 8 + idx) * 0.15;
+                        s.scale.set(pulse, pulse, pulse);
+                    });
+
+                    // Float background particles
+                    partNodes.forEach(p => {
+                        p.mesh.position.x += p.speedX;
+                        p.mesh.position.y += p.speedY;
+
+                        // Wrap around bounds
+                        if (Math.abs(p.mesh.position.x) > 22) p.mesh.position.x = -Math.sign(p.mesh.position.x) * 22;
+                        if (Math.abs(p.mesh.position.y) > 22) p.mesh.position.y = -Math.sign(p.mesh.position.y) * 22;
+                    });
+
+                    renderer.render(scene, camera);
+                }
+                animate();
+
+                // Resize handle
+                window.addEventListener('resize', () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            };
+
+            if (document.readyState === 'loading') {
+                window.addEventListener('DOMContentLoaded', init3D);
+            } else {
+                init3D();
+            }
+        })();
     </script>
 </body>
 </html>
