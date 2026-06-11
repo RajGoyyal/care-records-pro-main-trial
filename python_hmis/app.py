@@ -142,6 +142,7 @@ def _ensure_indexes(conn: sqlite3.Connection) -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_case_reports_usn ON case_reports(usn);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sick_intimations_usn ON sick_intimations(usn);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_treatment_refusals_usn ON treatment_refusals(usn);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_referrals_usn ON referrals(usn);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_patients_full_name ON patients(full_name);")
     conn.commit()
 
@@ -436,6 +437,38 @@ def init_db() -> None:
             FOREIGN KEY (usn) REFERENCES patients(usn) ON DELETE CASCADE,
             FOREIGN KEY (case_report_id) REFERENCES case_reports(report_number) ON DELETE SET NULL
         );
+
+        CREATE TABLE IF NOT EXISTS referrals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referral_number TEXT NOT NULL UNIQUE,
+            usn TEXT NOT NULL,
+            patient_name TEXT NULL,
+            patient_age INTEGER NULL,
+            patient_gender TEXT NULL,
+            referral_date TEXT NOT NULL,
+            referral_type TEXT NOT NULL DEFAULT 'hospital',
+            priority_level TEXT NOT NULL DEFAULT 'routine',
+            incident_report_id TEXT NULL,
+            destination_name TEXT NOT NULL,
+            destination_department TEXT NULL,
+            contact_person TEXT NULL,
+            contact_number TEXT NULL,
+            reason TEXT NOT NULL,
+            appointment_date TEXT NULL,
+            transport_mode TEXT NULL,
+            escort_required INTEGER NOT NULL DEFAULT 0,
+            escort_name TEXT NULL,
+            escort_contact TEXT NULL,
+            documents_provided TEXT NULL, -- JSON string of documents provided array
+            follow_up_plan TEXT NULL,
+            notes TEXT NULL,
+            acknowledgement_by_patient INTEGER NOT NULL DEFAULT 0,
+            ack_signed_name TEXT NULL,
+            ack_signed_usn TEXT NULL,
+            status TEXT NOT NULL DEFAULT 'Pending',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (usn) REFERENCES patients(usn) ON DELETE CASCADE
+        );
         """
     )
 
@@ -449,142 +482,140 @@ def init_db() -> None:
         return json.dumps(value, ensure_ascii=True)
 
     def _seed_test_data(cursor: sqlite3.Cursor) -> None:
-        if cursor.execute("SELECT COUNT(1) FROM patients").fetchone()[0] == 0:
-            cursor.executemany(
-                "INSERT INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
-                [
-                    ("1NH21CS001", "Aditi Rao", 20, "Female", "9876543210", "NHCE Hostel, Bengaluru"),
-                    ("1NH21CS002", "Karthik Sharma", 21, "Male", "9876501234", "Kalyan Nagar, Bengaluru"),
-                ],
-            )
+        cursor.executemany(
+            "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
+            [
+                ("1NH21CS001", "Aditi Rao", 20, "Female", "9876543210", "NHCE Hostel, Bengaluru"),
+                ("1NH21CS002", "Karthik Sharma", 21, "Male", "9876501234", "Kalyan Nagar, Bengaluru"),
+            ],
+        )
 
-        if cursor.execute("SELECT COUNT(1) FROM case_reports").fetchone()[0] == 0:
-            today_iso = date.today().isoformat()
-            cursor.executemany(
-                """
-                INSERT INTO case_reports(
-                    report_number, usn, patient_name, patient_age, patient_gender,
-                    report_type, chief_complaint, history_of_present_illness,
-                    diagnosis, doctor_name, report_date, status
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                [
-                    (
-                        "CR-0001",
-                        "1NH21CS001",
-                        "Aditi Rao",
-                        20,
-                        "Female",
-                        "medical",
-                        "Persistent headache",
-                        "Five-day history of headaches with photophobia",
-                        "Migraine",
-                        "Dr. Meera Singh",
-                        today_iso,
-                        "Active",
-                    ),
-                    (
-                        "CR-0002",
-                        "1NH21CS002",
-                        "Karthik Sharma",
-                        21,
-                        "Male",
-                        "medical",
-                        "Low-grade fever",
-                        "Two-day history of fever and fatigue",
-                        "Viral infection",
-                        "Dr. Arjun Rao",
-                        today_iso,
-                        "Active",
-                    ),
-                ],
-            )
+        today_iso = date.today().isoformat()
+        cursor.executemany(
+            """
+            INSERT OR IGNORE INTO case_reports(
+                report_number, usn, patient_name, patient_age, patient_gender,
+                report_type, chief_complaint, history_of_present_illness,
+                diagnosis, doctor_name, report_date, status
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            [
+                (
+                    "CR-0001",
+                    "1NH21CS001",
+                    "Aditi Rao",
+                    20,
+                    "Female",
+                    "medical",
+                    "Persistent headache",
+                    "Five-day history of headaches with photophobia",
+                    "Migraine",
+                    "Dr. Meera Singh",
+                    today_iso,
+                    "Active",
+                ),
+                (
+                    "CR-0002",
+                    "1NH21CS002",
+                    "Karthik Sharma",
+                    21,
+                    "Male",
+                    "medical",
+                    "Low-grade fever",
+                    "Two-day history of fever and fatigue",
+                    "Viral infection",
+                    "Dr. Arjun Rao",
+                    today_iso,
+                    "Active",
+                ),
+            ],
+        )
 
-        if cursor.execute("SELECT COUNT(1) FROM treatment_refusals").fetchone()[0] == 0:
-            today = date.today()
-            follow_up_date = (today + timedelta(days=7)).isoformat()
-            today_iso = today.isoformat()
-            cursor.executemany(
-                """
-                INSERT INTO treatment_refusals(
-                    refusal_number, usn, patient_name, patient_age, patient_gender,
-                    case_report_id, refusal_date, reason, risks_explained, witness_name,
-                    witness_contact, notes, doctor_name, status, severity_level,
-                    counselling_summary, follow_up_required, follow_up_date,
-                    follow_up_actions, consent_acknowledged, consent_signed_name,
-                    consent_signed_usn, consent_terms, doctor_remarks,
-                    additional_identifiers, attachments, additional_witnesses,
-                    institution_identifier, external_reference, location
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                [
-                    (
-                        "TR-0001",
-                        "1NH21CS001",
-                        "Aditi Rao",
-                        20,
-                        "Female",
-                        "CR-0001",
-                        today_iso,
-                        "Patient declined recommended MRI",
-                        "Discussed potential neurological complications",
-                        "Nisha Rao",
-                        "9876512345",
-                        "Will pursue Ayurvedic management first",
-                        "Dr. Meera Singh",
-                        "Active",
-                        "Moderate",
-                        "Explained warning signs and escalation plan",
-                        1,
-                        follow_up_date,
-                        "Call to reassess symptoms after exams",
-                        1,
-                        "Aditi Rao",
-                        "1NH21CS001",
-                        "Understands risks and accepts monitoring plan",
-                        "Monitor symptoms; proceed with imaging if headaches worsen",
-                        _json(["college-id", "insurance-card"]),
-                        _json([
-                            {"type": "note", "title": "Counselling summary", "createdAt": today_iso}
-                        ]),
-                        _json(["Guardian: Rahul Rao"]),
-                        "NHCE Clinic",
-                        "REF-TR-0001",
-                        "Bengaluru OPD",
-                    ),
-                    (
-                        "TR-0002",
-                        "1NH21CS002",
-                        "Karthik Sharma",
-                        21,
-                        "Male",
-                        "CR-0002",
-                        today_iso,
-                        "Declined follow-up laboratory tests",
-                        "Outlined benefits of baseline blood work",
-                        "Anil Sharma",
-                        "9876509876",
-                        "Student prefers to delay tests until after semester exams",
-                        "Dr. Arjun Rao",
-                        "Active",
-                        "Low",
-                        "Provided hydration and rest guidance",
-                        0,
-                        None,
-                        "Student to book labs when ready",
-                        0,
-                        None,
-                        None,
-                        "Patient advised to return if fever persists beyond three days",
-                        _json(["student-health-card"]),
-                        _json([]),
-                        _json([]),
-                        "NHCE Clinic",
-                        "REF-TR-0002",
-                        "Campus medical center",
-                    ),
-                ],
-            )
+        today = date.today()
+        follow_up_date = (today + timedelta(days=7)).isoformat()
+        today_iso = today.isoformat()
+        cursor.executemany(
+            """
+            INSERT OR IGNORE INTO treatment_refusals(
+                refusal_number, usn, patient_name, patient_age, patient_gender,
+                case_report_id, refusal_date, reason, risks_explained, witness_name,
+                witness_contact, notes, doctor_name, status, severity_level,
+                counselling_summary, follow_up_required, follow_up_date,
+                follow_up_actions, consent_acknowledged, consent_signed_name,
+                consent_signed_usn, consent_terms, doctor_remarks,
+                additional_identifiers, attachments, additional_witnesses,
+                institution_identifier, external_reference, location
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            [
+                (
+                    "TR-0001",
+                    "1NH21CS001",
+                    "Aditi Rao",
+                    20,
+                    "Female",
+                    "CR-0001",
+                    today_iso,
+                    "Patient declined recommended MRI",
+                    "Discussed potential neurological complications",
+                    "Nisha Rao",
+                    "9876512345",
+                    "Will pursue Ayurvedic management first",
+                    "Dr. Meera Singh",
+                    "Active",
+                    "Moderate",
+                    "Explained warning signs and escalation plan",
+                    1,
+                    follow_up_date,
+                    "Call to reassess symptoms after exams",
+                    1,
+                    "Aditi Rao",
+                    "1NH21CS001",
+                    "Understands risks and accepts monitoring plan",
+                    "Monitor symptoms; proceed with imaging if headaches worsen",
+                    _json(["college-id", "insurance-card"]),
+                    _json([
+                        {"type": "note", "title": "Counselling summary", "createdAt": today_iso}
+                    ]),
+                    _json(["Guardian: Rahul Rao"]),
+                    "NHCE Clinic",
+                    "REF-TR-0001",
+                    "Bengaluru OPD",
+                ),
+                (
+                    "TR-0002",
+                    "1NH21CS002",
+                    "Karthik Sharma",
+                    21,
+                    "Male",
+                    "CR-0002",
+                    today_iso,
+                    "Declined follow-up laboratory tests",
+                    "Outlined benefits of baseline blood work",
+                    "Anil Sharma",
+                    "9876509876",
+                    "Student prefers to delay tests until after semester exams",
+                    "Dr. Arjun Rao",
+                    "Active",
+                    "Low",
+                    "Provided hydration and rest guidance",
+                    0,
+                    None,
+                    "Student to book labs when ready",
+                    0,
+                    None,
+                    None,
+                    "Patient advised to return if fever persists beyond three days",
+                    None,
+                    _json(["student-health-card"]),
+                    _json([]),
+                    _json([]),
+                    "NHCE Clinic",
+                    "REF-TR-0002",
+                    "Campus medical center",
+                ),
+            ],
+        )
 
     # Backfill new treatment refusal columns for existing databases
     _ensure_column("treatment_refusals", "severity_level", "TEXT")
@@ -625,14 +656,8 @@ def init_db() -> None:
     DB_OPTIMIZED = True
 
 
-@app.before_request
-def ensure_db() -> None:
-    # Auto-create DB and tables
-    if not os.path.exists(DB_PATH):
-        init_db()
-    else:
-        # Ensure new tables exist on older DBs
-        init_db()
+# Run database initialization once when the application is imported/started
+init_db()
 
 
 # --- Routes ---
@@ -1546,6 +1571,122 @@ def api_treatment_refusals():
     return jsonify({"ok": True, "refusalNumber": refusal_number}), 201
 
 
+@app.route("/api/referrals", methods=["GET", "POST"])
+def api_referrals():
+    if request.method == "GET":
+        usn = request.args.get("usn")
+        conn = get_db()
+        if usn:
+            rows = conn.execute(
+                "SELECT * FROM referrals WHERE usn=? ORDER BY created_at DESC",
+                (usn,),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM referrals ORDER BY created_at DESC").fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+
+    data = request.get_json(silent=True) or {}
+    referral_number = (data.get("referralNumber") or data.get("referral_number") or "").strip()
+    usn = (data.get("usn") or "").strip()
+    if not (referral_number and usn):
+        return jsonify({"error": "referralNumber and usn are required"}), 400
+
+    conn = get_db()
+    patient_exists = conn.execute("SELECT 1 FROM patients WHERE usn=?", (usn,)).fetchone()
+    if not patient_exists:
+        conn.execute(
+            "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
+            (usn, data.get("patientName", "Unknown"), data.get("patientAge") or 0, data.get("patientGender", "Unknown"), "", ""),
+        )
+
+    def _json_or_none(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except TypeError:
+            return json.dumps(str(value), ensure_ascii=False)
+
+    escort_required = 1 if data.get("escortRequired") else 0
+    acknowledgement_by_patient = 1 if data.get("acknowledgementByPatient") else 0
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO referrals(
+            referral_number, usn, patient_name, patient_age, patient_gender,
+            referral_date, referral_type, priority_level, incident_report_id,
+            destination_name, destination_department, contact_person, contact_number,
+            reason, appointment_date, transport_mode, escort_required, escort_name,
+            escort_contact, documents_provided, follow_up_plan, notes,
+            acknowledgement_by_patient, ack_signed_name, ack_signed_usn,
+            status, created_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(referral_number) DO UPDATE SET
+            usn=excluded.usn,
+            patient_name=excluded.patient_name,
+            patient_age=excluded.patient_age,
+            patient_gender=excluded.patient_gender,
+            referral_date=excluded.referral_date,
+            referral_type=excluded.referral_type,
+            priority_level=excluded.priority_level,
+            incident_report_id=excluded.incident_report_id,
+            destination_name=excluded.destination_name,
+            destination_department=excluded.destination_department,
+            contact_person=excluded.contact_person,
+            contact_number=excluded.contact_number,
+            reason=excluded.reason,
+            appointment_date=excluded.appointment_date,
+            transport_mode=excluded.transport_mode,
+            escort_required=excluded.escort_required,
+            escort_name=excluded.escort_name,
+            escort_contact=excluded.escort_contact,
+            documents_provided=excluded.documents_provided,
+            follow_up_plan=excluded.follow_up_plan,
+            notes=excluded.notes,
+            acknowledgement_by_patient=excluded.acknowledgement_by_patient,
+            ack_signed_name=excluded.ack_signed_name,
+            ack_signed_usn=excluded.ack_signed_usn,
+            status=excluded.status
+        """,
+        (
+            referral_number,
+            usn,
+            data.get("patientName"),
+            data.get("patientAge"),
+            data.get("patientGender"),
+            data.get("referralDate"),
+            data.get("referralType", "hospital"),
+            data.get("priorityLevel", "routine"),
+            data.get("incidentReportId"),
+            data.get("destinationName"),
+            data.get("destinationDepartment"),
+            data.get("contactPerson"),
+            data.get("contactNumber"),
+            data.get("reason"),
+            data.get("appointmentDate"),
+            data.get("transportMode"),
+            escort_required,
+            data.get("escortName"),
+            data.get("escortContact"),
+            _json_or_none(data.get("documentsProvided")),
+            data.get("followUpPlan"),
+            data.get("notes"),
+            acknowledgement_by_patient,
+            data.get("ackSignedName"),
+            data.get("ackSignedUsn"),
+            data.get("status", "Active"),
+            datetime.utcnow().isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "referralNumber": referral_number}), 201
+
+
 @app.route("/api/export/prescriptions")
 def api_export_prescriptions():
     conn = get_db()
@@ -2009,6 +2150,109 @@ def sync_treatment_refusals():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/api/sync/referrals", methods=["POST"])
+def sync_referrals():
+    """Bulk sync referral records from offline data"""
+    try:
+        data = request.get_json()
+        if not isinstance(data, list):
+            return jsonify({"error": "Expected array of referrals"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        synced_count = 0
+
+        def _json_or_none(value: Any) -> Optional[str]:
+            if value is None:
+                return None
+            if isinstance(value, str):
+                return value
+            try:
+                return json.dumps(value, ensure_ascii=False)
+            except TypeError:
+                return json.dumps(str(value), ensure_ascii=False)
+
+        for ref in data:
+            try:
+                if not ref.get("referralNumber") or not ref.get("usn"):
+                    continue
+
+                cur.execute(
+                    "INSERT OR IGNORE INTO patients(usn, full_name, age, gender, contact, address) VALUES(?,?,?,?,?,?)",
+                    (
+                        ref.get("usn"),
+                        ref.get("patientName") or "Unknown",
+                        ref.get("patientAge") or 0,
+                        ref.get("patientGender") or "Unknown",
+                        "",
+                        "",
+                    ),
+                )
+
+                ref_id = ref.get("id")
+                if isinstance(ref_id, str):
+                    if ref_id.startswith("ref-"):
+                        ref_id = ref_id[4:]
+                    try:
+                        ref_id = int(ref_id)
+                    except ValueError:
+                        ref_id = None
+
+                cur.execute(
+                    """
+                    INSERT OR REPLACE INTO referrals(
+                        id, referral_number, usn, patient_name, patient_age, patient_gender,
+                        referral_date, referral_type, priority_level, incident_report_id,
+                        destination_name, destination_department, contact_person, contact_number,
+                        reason, appointment_date, transport_mode, escort_required, escort_name,
+                        escort_contact, documents_provided, follow_up_plan, notes,
+                        acknowledgement_by_patient, ack_signed_name, ack_signed_usn,
+                        status, created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        ref_id,
+                        ref.get("referralNumber"),
+                        ref.get("usn"),
+                        ref.get("patientName"),
+                        ref.get("patientAge"),
+                        ref.get("patientGender"),
+                        ref.get("referralDate"),
+                        ref.get("referralType", "hospital"),
+                        ref.get("priorityLevel", "routine"),
+                        ref.get("incidentReportId"),
+                        ref.get("destinationName"),
+                        ref.get("destinationDepartment"),
+                        ref.get("contactPerson"),
+                        ref.get("contactNumber"),
+                        ref.get("reason"),
+                        ref.get("appointmentDate"),
+                        ref.get("transportMode"),
+                        1 if ref.get("escortRequired") else 0,
+                        ref.get("escortName"),
+                        ref.get("escortContact"),
+                        _json_or_none(ref.get("documentsProvided")),
+                        ref.get("followUpPlan"),
+                        ref.get("notes"),
+                        1 if ref.get("acknowledgementByPatient") else 0,
+                        ref.get("ackSignedName"),
+                        ref.get("ackSignedUsn"),
+                        ref.get("status", "Active"),
+                        ref.get("createdAt") or datetime.utcnow().isoformat(),
+                    ),
+                )
+                synced_count += 1
+            except Exception as e:
+                print(f"Error syncing referral {ref.get('referralNumber', 'unknown')}: {e}")
+
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success", "synced_count": synced_count, "total_received": len(data)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/sync/status")
 def sync_status():
     """Get sync status and data counts"""
@@ -2021,6 +2265,7 @@ def sync_status():
         case_reports_count = cur.execute("SELECT COUNT(*) FROM case_reports").fetchone()[0]
         sick_intimations_count = cur.execute("SELECT COUNT(*) FROM sick_intimations").fetchone()[0]
         treatment_refusals_count = cur.execute("SELECT COUNT(*) FROM treatment_refusals").fetchone()[0]
+        referrals_count = cur.execute("SELECT COUNT(*) FROM referrals").fetchone()[0]
         conn.close()
         return jsonify({
             "status": "ok",
@@ -2030,7 +2275,8 @@ def sync_status():
                 "prescriptions": prescriptions_count,
                 "case_reports": case_reports_count,
                 "sick_intimations": sick_intimations_count,
-                "treatment_refusals": treatment_refusals_count
+                "treatment_refusals": treatment_refusals_count,
+                "referrals": referrals_count
             },
             "last_updated": datetime.utcnow().isoformat()
         })
